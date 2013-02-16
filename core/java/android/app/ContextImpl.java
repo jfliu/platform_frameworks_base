@@ -61,7 +61,7 @@ import android.location.ILocationManager;
 import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.MediaRouter;
-import android.net.ConnectivityManager;
+//import android.net.ConnectivityManager;
 import android.net.IConnectivityManager;
 import android.net.INetworkPolicyManager;
 import android.net.NetworkPolicyManager;
@@ -110,6 +110,16 @@ import android.accounts.AccountManager;
 import android.accounts.IAccountManager;
 import android.app.admin.DevicePolicyManager;
 import com.android.internal.os.IDropBoxManagerService;
+
+// BEGIN privacy-added
+import android.privacy.IPrivacySettingsManager;
+import android.privacy.PrivacySettingsManager;
+import android.privacy.surrogate.PrivacyAccountManager;
+import android.privacy.surrogate.PrivacyLocationManager;
+import android.privacy.surrogate.PrivacyTelephonyManager;
+import android.privacy.surrogate.PrivacyWifiManager;
+import android.privacy.surrogate.PrivacyConnectivityManager;
+// END privacy-added
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -179,6 +189,9 @@ class ContextImpl extends Context {
     private Resources mResources;
     /*package*/ ActivityThread mMainThread;
     private Context mOuterContext;
+    // BEGIN privacy-added
+    private static Context sOuterContext = null;
+    // END privacy-added
     private IBinder mActivityToken = null;
     private ApplicationContentResolver mContentResolver;
     private int mThemeResource = 0;
@@ -294,7 +307,11 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     IBinder b = ServiceManager.getService(ACCOUNT_SERVICE);
                     IAccountManager service = IAccountManager.Stub.asInterface(b);
-                    return new AccountManager(ctx, service);
+                    // BEGIN privacy-modified
+                    Log.d(TAG, "Privacy:ContextImpl: returning PrivacyAccountManager rather than AccountManager");
+                    //return new AccountManager(ctx, service);
+                    return new PrivacyAccountManager(ctx, service);
+                    // END privacy-modified
                 }});
 
         registerService(ACTIVITY_SERVICE, new ServiceFetcher() {
@@ -333,7 +350,14 @@ class ContextImpl extends Context {
         registerService(CONNECTIVITY_SERVICE, new StaticServiceFetcher() {
                 public Object createStaticService() {
                     IBinder b = ServiceManager.getService(CONNECTIVITY_SERVICE);
-                    return new ConnectivityManager(IConnectivityManager.Stub.asInterface(b));
+                    // BEGIN privacy-modified
+                    // SM: Having a 'static outer context' may be problematic if
+                    //      there is more than one instance of this class, ever.
+                    Log.d(TAG, "Privacy:ContextImpl: returning PrivacyConnectivityManager");
+                    //return new ConnectivityManager(IConnectivityManager.Stub.asInterface(b));
+                    IConnectivityManager service = IConnectivityManager.Stub.asInterface(b);
+                    return new PrivacyConnectivityManager(service, getStaticOuterContext());
+                    // END privacy-modified
                 }});
 
         registerService(COUNTRY_DETECTOR, new StaticServiceFetcher() {
@@ -399,8 +423,16 @@ class ContextImpl extends Context {
 
         registerService(LOCATION_SERVICE, new ServiceFetcher() {
                 public Object createService(ContextImpl ctx) {
-                    IBinder b = ServiceManager.getService(LOCATION_SERVICE);
-                    return new LocationManager(ctx, ILocationManager.Stub.asInterface(b));
+    	            IBinder b = ServiceManager.getService(LOCATION_SERVICE);
+    
+    	            // BEGIN privacy-modified
+    	            //return new LocationManager(ctx, ILocationManager.Stub.asInterface(b));
+    	            Log.d(TAG, "Privacy:ContextImpl: returning PrivacyLocationManager");
+    	            // SM: I'm not sure whyt this is using getStaticOuterContext rather than getOuterContext.
+    	            // Would have thought it should have been the following line:
+    	            // return new PrivacyLocationManager(ILocationManager.Stub.asInterface(b), ctx.getOuterContext());
+    	            return new PrivacyLocationManager(ILocationManager.Stub.asInterface(b), getStaticOuterContext());
+    	            // END privacy-modified                    
                 }});
 
         registerService(NETWORK_POLICY_SERVICE, new ServiceFetcher() {
@@ -471,7 +503,11 @@ class ContextImpl extends Context {
 
         registerService(TELEPHONY_SERVICE, new ServiceFetcher() {
                 public Object createService(ContextImpl ctx) {
-                    return new TelephonyManager(ctx.getOuterContext());
+                    // BEGIN privacy-modified
+                    //return new TelephonyManager(ctx.getOuterContext());
+                    Log.d(TAG, "Privacy:ContextImpl: returning PrivacyTelephonyManager");
+                    return new PrivacyTelephonyManager(ctx.getOuterContext());
+                    // END privacy-modified
                 }});
 
         registerService(THROTTLE_SERVICE, new StaticServiceFetcher() {
@@ -508,7 +544,11 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     IBinder b = ServiceManager.getService(WIFI_SERVICE);
                     IWifiManager service = IWifiManager.Stub.asInterface(b);
-                    return new WifiManager(ctx.getOuterContext(), service);
+                    // BEGIN privacy-modified
+                    //return new WifiManager(ctx.getOuterContext(), service);
+                    Log.d(TAG, "Privacy:ContextImpl: returning PrivacyWifiManager");
+                    return new PrivacyWifiManager(ctx.getOuterContext(), service);
+                    // END privacy-modified
                 }});
 
         registerService(WIFI_P2P_SERVICE, new ServiceFetcher() {
@@ -517,6 +557,16 @@ class ContextImpl extends Context {
                     IWifiP2pManager service = IWifiP2pManager.Stub.asInterface(b);
                     return new WifiP2pManager(service);
                 }});
+
+        // BEGIN privacy-added
+        registerService("privacy", new StaticServiceFetcher() {
+                public Object createStaticService() {
+                    Log.d(TAG, "Privacy:ContextImpl: Creating static privacy service");
+                    IBinder b = ServiceManager.getService("privacy");
+                    IPrivacySettingsManager service = IPrivacySettingsManager.Stub.asInterface(b);
+                    return new PrivacySettingsManager(getStaticOuterContext(), service);
+                }});
+        // END privacy-added
 
         registerService(WINDOW_SERVICE, new ServiceFetcher() {
                 public Object getService(ContextImpl ctx) {
@@ -1834,7 +1884,10 @@ class ContextImpl extends Context {
     }
 
     ContextImpl() {
-        mOuterContext = this;
+        if (sOuterContext != null) {
+            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
+        }
+        sOuterContext = mOuterContext = this;
     }
 
     /**
@@ -1851,7 +1904,12 @@ class ContextImpl extends Context {
         mContentResolver = context.mContentResolver;
         mUser = context.mUser;
         mDisplay = context.mDisplay;
-        mOuterContext = this;
+        
+        if (sOuterContext != null) {
+            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
+        }
+        
+        sOuterContext = mOuterContext = this;
     }
 
     final void init(LoadedApk packageInfo, IBinder activityToken, ActivityThread mainThread) {
@@ -1907,11 +1965,19 @@ class ContextImpl extends Context {
     }
 
     final void setOuterContext(Context context) {
-        mOuterContext = context;
+        if (sOuterContext != null) {
+            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
+        }
+
+        sOuterContext = mOuterContext = context;
     }
 
     final Context getOuterContext() {
         return mOuterContext;
+    }
+
+    final static Context getStaticOuterContext() {
+        return sOuterContext;
     }
 
     final IBinder getActivityToken() {

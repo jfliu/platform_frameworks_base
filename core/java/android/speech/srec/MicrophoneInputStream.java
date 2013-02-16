@@ -24,6 +24,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.IllegalStateException;
 
+//BEGIN PRIVACY
+import android.privacy.IPrivacySettingsManager;
+import android.privacy.PrivacyServiceException;
+import android.privacy.PrivacySettings;
+import android.privacy.PrivacySettingsManager;
+
+import android.content.Context;
+import android.content.pm.IPackageManager;
+import android.content.pm.PackageManager;
+
+import android.os.Process;
+import android.os.ServiceManager;
+import android.util.Log;
+//END PRIVACY
+
 
 /**
  * PCM input stream from the microphone, 16 bits per sample.
@@ -32,11 +47,133 @@ public final class MicrophoneInputStream extends InputStream {
     static {
         System.loadLibrary("srec_jni");
     }
+
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //BEGIN PRIVACY 
+
+    private static final int IS_ALLOWED = -1;
+    private static final int IS_NOT_ALLOWED = -2;
+    private static final int GOT_ERROR = -3;
     
+    private static final String PRIVACY_TAG = "PM,MicrophoneInputStream";
+    private Context context;
+    
+    private PrivacySettingsManager pSetMan;
+    
+    private boolean privacyMode = false;
+    
+    private IPackageManager mPm;
+    
+    //END PRIVACY
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+
     private final static String TAG = "MicrophoneInputStream";
     private int mAudioRecord = 0;
     private byte[] mOneByte = new byte[1];
     
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //BEGIN PRIVACY
+    /**
+     * {@hide}
+     * @return package names of current process which is using this object or null if something went wrong
+     */
+    private String[] getPackageName(){
+    	try{
+    		if(mPm != null){
+        		int uid = Process.myUid();
+        		String[] package_names = mPm.getPackagesForUid(uid);
+        		return package_names;
+        	}
+    		else{
+    			mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+    			int uid = Process.myUid();
+        		String[] package_names = mPm.getPackagesForUid(uid);
+        		return package_names;
+    		}
+    	}
+    	catch(Exception e){
+    		e.printStackTrace();
+    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
+    		return null;
+    	}
+    }
+    /**
+     * {@hide}
+     * This method sets up all variables which are needed for privacy mode! It also writes to privacyMode, if everything was successfull or not! 
+     * -> privacyMode = true ok! otherwise false!
+     * CALL THIS METHOD IN CONSTRUCTOR!
+     */
+    private void initiate(){
+    	try{
+    		context = null;
+    		if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+    		mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+       	 	privacyMode = true;
+    	}
+    	catch(Exception e){
+    		e.printStackTrace();
+    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+    		privacyMode = false;
+    	}
+    }
+    /**
+     * {@hide}
+     * This method should be used, because in some devices the uid has more than one package within!
+     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed, GOT_ERROR (-3) if something went wrong
+     */
+    private int checkIfPackagesAllowed(){
+        try{
+            //boolean isAllowed = false;
+            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+            String[] package_names = getPackageName();
+            if (package_names == null) {
+                Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
+                return GOT_ERROR;
+            }
+            PrivacySettings pSet = null;
+            try {
+                for(int i=0;i < package_names.length; i++){
+                    pSet = pSetMan.getSettings(package_names[i]);
+                    if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+                        return IS_NOT_ALLOWED;
+                    }
+                    pSet = null;
+                }
+            } catch (PrivacyServiceException e) {
+                Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed:return GOT_ERROR, because PrivacyServiceException occurred");
+                return GOT_ERROR;
+            }
+            return IS_ALLOWED;
+        } catch (Exception e){
+            Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
+            return GOT_ERROR;
+        }
+    }
+    
+    
+    /**
+     * Loghelper method, true = access successful, false = blocked access
+     * {@hide}
+     */
+    private void dataAccess(boolean success){
+	String package_names[] = getPackageName();
+	if(success && package_names != null){
+		for(int i=0;i<package_names.length;i++)
+			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone.");
+	}
+	else if(package_names != null){
+		for(int i=0;i<package_names.length;i++)
+			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone.");
+	}
+    }
+    //END PRIVACY
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
     /**
      * MicrophoneInputStream constructor.
      * @param sampleRate sample rate of the microphone, typically 11025 or 8000.
@@ -44,6 +181,40 @@ public final class MicrophoneInputStream extends InputStream {
      * This determines how long an application may delay before losing data.
      */
     public MicrophoneInputStream(int sampleRate, int fifoDepth) throws IOException {
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //BEGIN PRIVACY
+        if(!privacyMode){
+            initiate();
+        }
+
+        String packageName[] = getPackageName();
+
+        switch (checkIfPackagesAllowed()) {
+        case IS_ALLOWED:
+            dataAccess(true);
+            if(packageName != null && pSetMan != null) {
+                pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
+            }
+            break;
+        case GOT_ERROR:
+            dataAccess(false);
+            if(packageName != null && pSetMan != null) {
+                pSetMan.notification(packageName[0], PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null);
+            }
+            throw new IOException("AudioRecord constructor failed - busy?");
+        default:
+            dataAccess(false);
+            if(packageName != null && pSetMan != null) {
+                pSetMan.notification(packageName[0], PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null);
+            }
+            throw new IOException("AudioRecord constructor failed - busy?");
+        }
+        //END PRIVACY
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
         mAudioRecord = AudioRecordNew(sampleRate, fifoDepth);
         if (mAudioRecord == 0) throw new IOException("AudioRecord constructor failed - busy?");
         int status = AudioRecordStart(mAudioRecord);
