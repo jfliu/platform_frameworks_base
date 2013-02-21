@@ -308,7 +308,7 @@ class ContextImpl extends Context {
                     IBinder b = ServiceManager.getService(ACCOUNT_SERVICE);
                     IAccountManager service = IAccountManager.Stub.asInterface(b);
                     //return new AccountManager(ctx, service);
-		    // BEGIN privacy-modified
+                    // BEGIN privacy-modified
                     return new PrivacyAccountManager(ctx, service);
                     // END privacy-modified
                 }});
@@ -349,11 +349,11 @@ class ContextImpl extends Context {
         registerService(CONNECTIVITY_SERVICE, new StaticServiceFetcher() {
                 public Object createStaticService() {
                     IBinder b = ServiceManager.getService(CONNECTIVITY_SERVICE);
-		    //BEGIN PRIVACY ADDED
+                    //BEGIN PRIVACY ADDED
                     //return new ConnectivityManager(IConnectivityManager.Stub.asInterface(b));
-		    IConnectivityManager service = IConnectivityManager.Stub.asInterface(b);
-		    return new PrivacyConnectivityManager(service, getStaticOuterContext());
-		    //END PRIVACY ADDED
+                    IConnectivityManager service = IConnectivityManager.Stub.asInterface(b);
+                    return new PrivacyConnectivityManager(service, getStaticOuterContext());
+                    //END PRIVACY ADDED
                 }});
 
         registerService(COUNTRY_DETECTOR, new StaticServiceFetcher() {
@@ -422,11 +422,11 @@ class ContextImpl extends Context {
                     
 	            IBinder b = ServiceManager.getService(LOCATION_SERVICE);
 
-		    //return new LocationManager(ctx, ILocationManager.Stub.asInterface(b));
+	            //return new LocationManager(ctx, ILocationManager.Stub.asInterface(b));
 		    
-		    // BEGIN privacy-modified
+	            // BEGIN privacy-modified
 	            return new PrivacyLocationManager(ILocationManager.Stub.asInterface(b), getStaticOuterContext());
-		    // END privacy-modified
+	            // END privacy-modified
                     
                 }});
 
@@ -538,9 +538,9 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     IBinder b = ServiceManager.getService(WIFI_SERVICE);
                     IWifiManager service = IWifiManager.Stub.asInterface(b);
-                    //return new WifiManager(ctx.getOuterContext(), service);
                     // BEGIN privacy
-                    return new PrivacyWifiManager(ctx.getOuterContext(), service);
+                    //return new WifiManager(ctx.getOuterContext(), service);
+                    return new PrivacyWifiManager(service, ctx);
                     // END privacy
                 }});
 
@@ -550,15 +550,6 @@ class ContextImpl extends Context {
                     IWifiP2pManager service = IWifiP2pManager.Stub.asInterface(b);
                     return new WifiP2pManager(service);
                 }});
-
-        // BEGIN privacy-added
-        registerService("privacy", new StaticServiceFetcher() {
-                public Object createStaticService() {
-                    IBinder b = ServiceManager.getService("privacy");
-                    IPrivacySettingsManager service = IPrivacySettingsManager.Stub.asInterface(b);
-                    return new PrivacySettingsManager(getStaticOuterContext(),service);
-                }});
-        // END privacy-added
 
         registerService(WINDOW_SERVICE, new ServiceFetcher() {
                 public Object getService(ContextImpl ctx) {
@@ -577,6 +568,15 @@ class ContextImpl extends Context {
                 IUserManager service = IUserManager.Stub.asInterface(b);
                 return new UserManager(ctx, service);
             }});
+              // BEGIN privacy-added
+              registerService("privacy", new StaticServiceFetcher() {
+                public Object createStaticService() {
+                    IBinder b = ServiceManager.getService("privacy");
+                    IPrivacySettingsManager service = IPrivacySettingsManager.Stub.asInterface(b);
+                    return new PrivacySettingsManager(getStaticOuterContext(),service);
+                }});
+              // END privacy-added
+
     }
 
     static ContextImpl getImpl(Context context) {
@@ -1071,7 +1071,8 @@ class ContextImpl extends Context {
 
     @Override
     public void sendBroadcast(Intent intent) {
-        warnIfCallingFromSystemProcess();
+    	if(!isPrivacyBroadCast(intent))
+    		warnIfCallingFromSystemProcess();
         String resolvedType = intent.resolveTypeIfNeeded(getContentResolver());
         try {
             intent.setAllowFds(false);
@@ -1085,7 +1086,8 @@ class ContextImpl extends Context {
 
     @Override
     public void sendBroadcast(Intent intent, String receiverPermission) {
-        warnIfCallingFromSystemProcess();
+    	if(!isPrivacyBroadCast(intent))
+    		warnIfCallingFromSystemProcess();
         String resolvedType = intent.resolveTypeIfNeeded(getContentResolver());
         try {
             intent.setAllowFds(false);
@@ -1100,7 +1102,8 @@ class ContextImpl extends Context {
     @Override
     public void sendOrderedBroadcast(Intent intent,
             String receiverPermission) {
-        warnIfCallingFromSystemProcess();
+    	if(!isPrivacyBroadCast(intent))
+    		warnIfCallingFromSystemProcess();
         String resolvedType = intent.resolveTypeIfNeeded(getContentResolver());
         try {
             intent.setAllowFds(false);
@@ -1754,6 +1757,18 @@ class ContextImpl extends Context {
                       message);
     }
 
+    /**
+     * checks if current intent is a privacy related intent
+     * @param intent current intent
+     * @return true if intent contains privacy notifications, false otherwise
+     */
+    private boolean isPrivacyBroadCast(Intent intent) {
+    	if(intent.getAction().equals(PrivacySettingsManager.ACTION_PRIVACY_NOTIFICATION))
+    		return true;
+    	else
+    		return false;
+    }
+    
     private void warnIfCallingFromSystemProcess() {
         if (Process.myUid() == Process.SYSTEM_UID) {
             Slog.w(TAG, "Calling a method in the system process without a qualified user: "

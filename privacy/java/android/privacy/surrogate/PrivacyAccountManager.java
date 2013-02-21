@@ -16,14 +16,26 @@ import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
-import android.util.Log;
+import android.privacy.utilities.PrivacyDebugger;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * Copyright (C) 2012 Svyatoslav Hresyk
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 3 of the License, or (at your option) any later version.
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, see <http://www.gnu.org/licenses>.
+ */
+
+/**
  * Provides privacy handling for {@link android.accounts.AccountManager}
- * @author Svyatoslav Hresyk
+ * @author Svyatoslav Hresyk; modified & improved by CollegeDev (Stefan. T)
  * {@hide}
  */
 public final class PrivacyAccountManager extends AccountManager {
@@ -38,7 +50,6 @@ public final class PrivacyAccountManager extends AccountManager {
     public PrivacyAccountManager(Context context, IAccountManager service) {
         super(context, service);
         this.context = context;
-//        pSetMan = (PrivacySettingsManager) context.getSystemService("privacy");
         pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));  
     }
 
@@ -46,7 +57,6 @@ public final class PrivacyAccountManager extends AccountManager {
     public PrivacyAccountManager(Context context, IAccountManager service, Handler handler) {
         super(context, service, handler);
         this.context = context;
-//        pSetMan = (PrivacySettingsManager) context.getSystemService("privacy");
         pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));        
     }
 
@@ -58,21 +68,27 @@ public final class PrivacyAccountManager extends AccountManager {
     public Account[] getAccounts() {
         String packageName = context.getPackageName();
         int uid = Binder.getCallingUid();
-        PrivacySettings pSet = pSetMan.getSettings(packageName, uid);
+        PrivacySettings pSet = pSetMan.getSettings(packageName);
         String output_label;
         Account[] output;
         
         if (pSet != null && pSet.getAccountsSetting() != PrivacySettings.REAL) {
             output_label = "[empty accounts list]";
             output = new Account[0];
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
         } else {
             output_label = "[real value]";
             output = super.getAccounts(); 
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
         }
         
-//        Log.d(TAG, "getAccounts - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
+        PrivacyDebugger.d(TAG, "getAccounts - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
         return output;
     }
 
@@ -80,21 +96,27 @@ public final class PrivacyAccountManager extends AccountManager {
     public Account[] getAccountsByType(String type) {
         String packageName = context.getPackageName();
         int uid = Binder.getCallingUid();        
-        PrivacySettings pSet = pSetMan.getSettings(packageName, uid);
+        PrivacySettings pSet = pSetMan.getSettings(packageName);
         String output_label;
         Account[] output;
         
         if (pSet != null && pSet.getAccountsSetting() != PrivacySettings.REAL) {
             output_label = "[empty accounts list]";
             output = new Account[0];
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
         } else {
             output_label = "[real value]";
             output = super.getAccountsByType(type);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);
         }
         
-//        Log.d(TAG, "getAccountsByType - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
+        PrivacyDebugger.d(TAG, "getAccountsByType - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
         return output;
     }
     
@@ -110,14 +132,20 @@ public final class PrivacyAccountManager extends AccountManager {
         if (pSet != null && pSet.getAccountsSetting() != PrivacySettings.REAL) {
             output_label = "[false]";
             output = new PrivacyAccountManagerFuture<Boolean>(false);
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);      
+            else	
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);      
         } else {
             output_label = "[real value]";
             output = super.hasFeatures(account, features, callback, handler);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);            
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);            
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);            
         }
         
-//        Log.d(TAG, "hasFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
+        PrivacyDebugger.d(TAG, "hasFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);        
         return output;
     }
 
@@ -133,14 +161,20 @@ public final class PrivacyAccountManager extends AccountManager {
         if (pSet != null && pSet.getAccountsSetting() != PrivacySettings.REAL) {
             output_label = "[false]";
             output = new PrivacyAccountManagerFuture<Account[]>(new Account[0]);
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);   
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);   
         } else {
             output_label = "[real value]";
             output = super.getAccountsByTypeAndFeatures(type, features, callback, handler);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);            
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet);   
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_ACCOUNTS_LIST, null, pSet); 
         }
         
-//        Log.d(TAG, "getAccountsByTypeAndFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
+        PrivacyDebugger.d(TAG, "getAccountsByTypeAndFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
         return output;
     }
     
@@ -158,14 +192,21 @@ public final class PrivacyAccountManager extends AccountManager {
         
         if (pSet != null && pSet.getAccountsAuthTokensSetting() != PrivacySettings.REAL) {
             output = null;
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            	
         } else {
             output = super.blockingGetAuthToken(account, authTokenType, notifyAuthFailure);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet); 
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet); 
         }
         
-//        Log.d(TAG, "blockingGetAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " 
-//                + (output == null ? "[null]" : output));
+        PrivacyDebugger.d(TAG, "blockingGetAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " 
+                + (output == null ? "[null]" : output));
         return output;
     }
 
@@ -181,14 +222,20 @@ public final class PrivacyAccountManager extends AccountManager {
         if (pSet != null && pSet.getAccountsAuthTokensSetting() != PrivacySettings.REAL) {
             output_label = "[empty]";
             output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);     
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);     
         } else {
             output_label = "[real value]";
             output = super.getAuthToken(account, authTokenType, notifyAuthFailure, callback, handler);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);    
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);    
         }
         
-//        Log.d(TAG, "getAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
+        PrivacyDebugger.d(TAG, "getAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
         return output;
     }
 
@@ -204,14 +251,20 @@ public final class PrivacyAccountManager extends AccountManager {
         if (pSet != null && pSet.getAccountsAuthTokensSetting() != PrivacySettings.REAL) {
             output_label = "[empty]";
             output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);    
         } else {
             output_label = "[real value]";
             output = super.getAuthToken(account, authTokenType, options, activity, callback, handler);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet); 
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet); 
         }
         
-//        Log.d(TAG, "getAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
+        PrivacyDebugger.d(TAG, "getAuthToken - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
         return output;
     }
 
@@ -232,15 +285,22 @@ public final class PrivacyAccountManager extends AccountManager {
         if (pSet != null && pSet.getAccountsAuthTokensSetting() != PrivacySettings.REAL) {
             output_label = "[empty]";
             output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);   
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);   
+            	
         } else {
             output_label = "[real value]";
             output = super.getAuthTokenByFeatures(accountType, authTokenType, features, activity, addAccountOptions,
                     getAuthTokenOptions, callback, handler);
-            pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            if(pSet != null && pSet.isDefaultDenyObject())
+            	pSetMan.notification(packageName, uid, PrivacySettings.ERROR, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);      
+            else
+            	pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_AUTH_TOKENS, null, pSet);  
         }
         
-//        Log.d(TAG, "getAuthTokenByFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
+        PrivacyDebugger.d(TAG, "getAuthTokenByFeatures - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output_label);           
         return output;
     }
     

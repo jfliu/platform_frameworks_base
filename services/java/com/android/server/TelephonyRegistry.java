@@ -54,6 +54,7 @@ import com.android.internal.telephony.ServiceStateTracker;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.server.am.BatteryStatsService;
 
+
 /**
  * Since phone process can be restarted, this class provides a centralized place
  * that applications can register and be called back from.
@@ -352,11 +353,9 @@ class TelephonyRegistry extends ITelephonyRegistry.Stub {
         }
         synchronized (mRecords) {
             mServiceState = state;
-	    mServiceState.setOperatorName("", "", "");
             for (Record r : mRecords) {
                 if ((r.events & PhoneStateListener.LISTEN_SERVICE_STATE) != 0) {
                     try {
-			state.setOperatorName("", "", "");
                         r.callback.onServiceStateChanged(new ServiceState(state));
                     } catch (RemoteException ex) {
                         mRemoveList.add(r.binder);
@@ -367,7 +366,7 @@ class TelephonyRegistry extends ITelephonyRegistry.Stub {
         }
         broadcastServiceStateChanged(state);
     }
-
+    
     public void notifySignalStrength(SignalStrength signalStrength) {
         if (!checkNotifyPermission("notifySignalStrength()")) {
             return;
@@ -780,7 +779,7 @@ class TelephonyRegistry extends ITelephonyRegistry.Stub {
         }
     }
 
-    private boolean validateEventsAndUserLocked(Record r, int events) {
+    protected boolean validateEventsAndUserLocked(Record r, int events) {
         int foregroundUser;
         long callingIdentity = Binder.clearCallingIdentity();
         boolean valid = false;

@@ -7,7 +7,22 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
-/** {@hide} */
+/**
+ * Copyright (C) 2012 Svyatoslav Hresyk
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 3 of the License, or (at your option) any later version.
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, see <http://www.gnu.org/licenses>.
+ */
+/**
+ * {@hide}
+ * @author Svyatoslav Hresyk; modified & improved by CollegeDev (Stefan. T)
+ *
+ */
 public class PrivacyFileObserver extends FileObserver {
     
     public static final String TAG = "PrivacyFileObserver";
@@ -45,7 +60,7 @@ public class PrivacyFileObserver extends FileObserver {
     @Override
     public void onEvent(int event, String path) {
         if ((FileObserver.ACCESS & event) != 0) { // data was read from a file
-//            Log.d(TAG, "onEvent - file accessed: " + absolutePath);
+//            PrivacyDebugger.d(TAG, "onEvent - file accessed: " + absolutePath);
             StringTokenizer tokenizer = new StringTokenizer(absolutePath, "/");
             for (int i = 0; i < PACKAGE_PATH_INDEX && tokenizer.hasMoreElements(); i++) {
                 tokenizer.nextToken();
@@ -59,7 +74,7 @@ public class PrivacyFileObserver extends FileObserver {
 //            try {
 //                uid = Integer.parseInt(tokenizer.nextToken());
 //            } catch (NumberFormatException e) {
-//                Log.e(TAG, "onEvent - could not get the UID of accessing application", e);
+//                PrivacyDebugger.e(TAG, "onEvent - could not get the UID of accessing application", e);
 //                // we still can continue, UID is optional here
 //            }
             
@@ -91,12 +106,12 @@ public class PrivacyFileObserver extends FileObserver {
 
     @Override
     public void startWatching() {
-//        Log.d("PrivacyFileObserver", "PrivacyFileObserver - observing directory: " + absolutePath);
+//        PrivacyDebugger.d("PrivacyFileObserver", "PrivacyFileObserver - observing directory: " + absolutePath);
         super.startWatching();
     }
     
 //    public void verifyObserver() {
-//        Log.d(TAG, "verifyObservers - observer path: " + absolutePath);
+//        PrivacyDebugger.d(TAG, "verifyObservers - observer path: " + absolutePath);
 //        for (PrivacyFileObserver obs : children.values()) obs.verifyObserver();
 //    }
     

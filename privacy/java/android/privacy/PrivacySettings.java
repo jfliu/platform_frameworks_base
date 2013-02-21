@@ -7,10 +7,20 @@ import android.util.Log;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Random;
-
+/**
+ * Copyright (C) 2012 Svyatoslav Hresyk
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 3 of the License, or (at your option) any later version.
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, see <http://www.gnu.org/licenses>.
+ */
 /**
  * Holds privacy settings for access to all private data types for a single application
- * @author Svyatoslav Hresyk 
+ * @author Svyatoslav Hresyk; modified & improved by CollegeDev (Stefan. T)
  * {@hide} 
  */
 public final class PrivacySettings implements Parcelable {
@@ -42,6 +52,13 @@ public final class PrivacySettings implements Parcelable {
      * Line1Number: a random string consisting of 13 numeric digits
      */
     public static final byte RANDOM = 3;
+    
+    /**
+     * Indicates database connection errors, and all kind of that. If this option is set,
+     * the user will get information that something went wrong and the default deny Settings
+     * grab.
+     */
+    public static final byte ERROR = 4;
     
     public static final byte SETTING_NOTIFY_OFF = 0;
     public static final byte SETTING_NOTIFY_ON = 1;
@@ -83,6 +100,47 @@ public final class PrivacySettings implements Parcelable {
     public static final String DATA_SWITCH_CONNECTIVITY = "switchconnectivity";
     public static final String DATA_SEND_MMS = "sendMms";
     public static final String DATA_SWITCH_WIFI_STATE = "switchWifiState";
+    
+    
+    /**
+     * One of three possible option which declare how PDroid handles if
+     * we are not able to get current PrivacySettings. 
+     * Empty means that if we can't get settings for the application for several reason, 
+     * we will return a PrivacySettings object where all Settings are empty.
+     */
+    public static final int DEFAULT_DENY_EMPTY = -1;
+    /**
+     * One of three possible option which declare how PDroid handles if
+     * we are not able to get current PrivacySettings. 
+     * Real means that if we can't get settings for the application for several reason, 
+     * we will return a PrivacySettings object where all Settings are real.
+     */
+    public static final int DEFAULT_DENY_REAL = -2;
+    /**
+     * One of three possible option which declare how PDroid handles if
+     * we are not able to get current PrivacySettings. 
+     * Random means that if we can't get settings for the application for several reason, 
+     * we will return a PrivacySettings object where all Settings are random.
+     */
+    public static final int DEFAULT_DENY_RANDOM = -3;
+    
+    /**
+     * Represents the current default deny mode. Just change it to your demanded mode if you like.
+     */
+    public static final int CURRENT_DEFAULT_DENY_MODE = DEFAULT_DENY_EMPTY;
+    
+    /**
+     * The package name of the default deny object. With the package name you're able to check if it is 
+     * a default deny object or a real settings object.
+     */
+    public static final String DEFAULT_DENY_OBJECT_PACKAGE_NAME = "default.deny.object";
+    
+    /**
+     * The package name of the fail save mode object. With the package name you're able to check if it is 
+     * a fail save settings object or a real settings object.
+     */
+    public static final String FAIL_SAFE_MODE_OBJECT_PACKAGE_NAME = "fail.safe.object";
+    
     
     // Database entry ID
     private final Integer _id;
@@ -1009,6 +1067,110 @@ public final class PrivacySettings implements Parcelable {
     @Override
     public int describeContents() {
         return 0;
+    }
+    
+    /**
+     * Creates new settings object based on the settings of the old one
+     * and marks it as an new entry for the database.
+     * @param settings Settings of the application
+     * @return Settings which are marked as new one for the database
+     */
+    public static PrivacySettings markAsNewEntry(PrivacySettings settings) {
+    	return new PrivacySettings(settings);
+    }
+    
+    /**
+     * Used to create new Settings from an existing one (CopyConstructor)
+     * -> the object is marked as new entry for the database
+     * @param settings PrivacySettings of the application
+     */
+    PrivacySettings(PrivacySettings settings) {
+		this._id = null;
+		this.packageName = settings.packageName;
+		this.uid = settings.uid;
+		this.deviceIdSetting = settings.deviceIdSetting;
+		this.deviceId = settings.deviceId;
+		this.line1NumberSetting = settings.line1NumberSetting;
+		this.line1Number = settings.line1Number;
+		this.locationGpsSetting = settings.locationGpsSetting;
+		this.locationGpsLat = settings.locationGpsLat;
+		this.locationGpsLon = settings.locationGpsLon;
+		this.locationNetworkSetting = settings.locationNetworkSetting;
+		this.locationNetworkLat = settings.locationNetworkLat;
+		this.locationNetworkLon = settings.locationNetworkLon;
+		this.networkInfoSetting = settings.networkInfoSetting;
+		this.simInfoSetting = settings.simInfoSetting;
+		this.simSerialNumberSetting = settings.simSerialNumberSetting;
+		this.simSerialNumber = settings.simSerialNumber;
+		this.subscriberIdSetting = settings.subscriberIdSetting;
+		this.subscriberId = settings.subscriberId;
+		this.accountsSetting = settings.accountsSetting;
+		this.accountsAuthTokensSetting = settings.accountsAuthTokensSetting;
+		this.outgoingCallsSetting = settings.outgoingCallsSetting;
+		this.incomingCallsSetting = settings.incomingCallsSetting;
+		this.contactsSetting = settings.contactsSetting;
+		this.calendarSetting = settings.calendarSetting;
+		this.mmsSetting = settings.mmsSetting;
+		this.smsSetting = settings.smsSetting;
+		this.callLogSetting = settings.callLogSetting;
+		this.bookmarksSetting = settings.bookmarksSetting;
+		this.systemLogsSetting = settings.systemLogsSetting;
+		this.notificationSetting = settings.notificationSetting;
+		this.intentBootCompletedSetting = settings.intentBootCompletedSetting;
+		this.cameraSetting = settings.cameraSetting;
+		this.recordAudioSetting = settings.recordAudioSetting;
+		this.smsSendSetting = settings.smsSendSetting;
+		this.phoneCallSetting = settings.phoneCallSetting;
+		this.ipTableProtectSetting = settings.ipTableProtectSetting;
+		this.iccAccessSetting = settings.iccAccessSetting;
+		this.addOnManagementSetting = settings.addOnManagementSetting;
+		this.androidIdSetting = settings.androidIdSetting;
+		this.androidID = settings.androidID;
+		this.wifiInfoSetting = settings.wifiInfoSetting;
+		this.switchConnectivitySetting = settings.switchConnectivitySetting;
+		this.sendMmsSetting = settings.sendMmsSetting;
+		this.forceOnlineState = settings.forceOnlineState;
+		this.switchWifiStateSetting = settings.switchWifiStateSetting;
+		this.allowedContacts = settings.allowedContacts;
+	}
+    
+    public static PrivacySettings getFailSaveObject() {
+    	return new PrivacySettings(-1, FAIL_SAFE_MODE_OBJECT_PACKAGE_NAME, -1, true);
+    }
+    
+    /**
+     * Use this method to get default deny object if something went wrong while getting the settings.
+     * 
+     * @return the default deny object (random, real, empty).
+     */
+    public static PrivacySettings getDefaultDenyObject() {
+    	switch(CURRENT_DEFAULT_DENY_MODE) {
+    		case DEFAULT_DENY_EMPTY:
+    			return new PrivacySettings(-1, DEFAULT_DENY_OBJECT_PACKAGE_NAME, -1, true);
+    		case DEFAULT_DENY_REAL:
+    			return new PrivacySettings(-1, DEFAULT_DENY_OBJECT_PACKAGE_NAME, -1);
+    		case DEFAULT_DENY_RANDOM:
+    			return new PrivacySettings(-1, DEFAULT_DENY_OBJECT_PACKAGE_NAME, -1, false);
+    		default:
+    			//that normally does not happen, but we have to write it down!
+    			return new PrivacySettings(-1, DEFAULT_DENY_OBJECT_PACKAGE_NAME, -1, true);
+    	}
+    }
+    
+    /**
+     * indicates if the current settings object is a default deny object or not
+     * @return true if it is a default deny object, false otherwise
+     */
+    public boolean isDefaultDenyObject() {
+    	return packageName.equals(DEFAULT_DENY_OBJECT_PACKAGE_NAME) ? true : false;
+    }
+    
+    /**
+     * indicates if the current settings object is a fail safe object
+     * @return true if it is a fail save object, false otherwise
+     */
+    public boolean isFailSafeObject() {
+    	return packageName.equals(FAIL_SAFE_MODE_OBJECT_PACKAGE_NAME) ? true : false;
     }
     
 	

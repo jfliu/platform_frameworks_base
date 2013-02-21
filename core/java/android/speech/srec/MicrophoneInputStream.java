@@ -28,6 +28,7 @@ import java.lang.IllegalStateException;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 
 import android.content.Context;
 import android.content.pm.IPackageManager;
@@ -55,7 +56,7 @@ public final class MicrophoneInputStream extends InputStream {
     private static final int IS_NOT_ALLOWED = -2;
     private static final int GOT_ERROR = -3;
     
-    private static final String PRIVACY_TAG = "PM,MicrophoneInputStream";
+    private static final String PRIVACY_TAG = "PrivacyMicrophoneInputStream";
     private Context context;
     
     private PrivacySettingsManager pSetMan;
@@ -94,8 +95,7 @@ public final class MicrophoneInputStream extends InputStream {
     		}
     	}
     	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
+    		PrivacyDebugger.e(PRIVACY_TAG,"something went wrong with getting package name", e);
     		return null;
     	}
     }
@@ -113,8 +113,7 @@ public final class MicrophoneInputStream extends InputStream {
        	 	privacyMode = true;
     	}
     	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+    		PrivacyDebugger.e(PRIVACY_TAG, "Something went wrong with initalize variables", e);
     		privacyMode = false;
     	}
     }
@@ -125,52 +124,54 @@ public final class MicrophoneInputStream extends InputStream {
      */
     private int checkIfPackagesAllowed(){
     	try{
-    		//boolean isAllowed = false;
-    		if(pSetMan != null){
-    			PrivacySettings pSet = null;
-	    		String[] package_names = getPackageName();
-	    		int uid = Process.myUid();
-	    		if(package_names != null){
-	    		
-		        	for(int i=0;i < package_names.length; i++){
-		        		pSet = pSetMan.getSettings(package_names[i], uid);
-		        		if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-		        			return IS_NOT_ALLOWED;
-		        		}
-		        		pSet = null;
-		        	}
-			    	return IS_ALLOWED;
-	    		}
-	    		else{
-	    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because package_names are NULL");
-	    			return GOT_ERROR;
-	    		}
+    		if(pSetMan == null) 
+    			pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+			PrivacySettings pSet = null;
+    		String[] package_names = getPackageName();
+    		if(package_names != null){
+	        	for(String pack : package_names){
+	        		pSet = pSetMan.getSettings(pack);
+	        		if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+	        			if(pSet.isDefaultDenyObject())
+	        				pSetMan.notification(pack, 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+	        			else
+	        				pSetMan.notification(pack, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+	        			PrivacyDebugger.i(TAG, "package: " + pack + " is not allowed to access microphone. Default deny mode on: " + pSet.isDefaultDenyObject());
+	        			return IS_NOT_ALLOWED;
+	        		}
+	        		pSet = null;
+	        	}
+	        	PrivacyDebugger.w(PRIVACY_TAG,"allowing package: " + package_names[0] + " accessing the microphone");
+	        	pSetMan.notification(package_names[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+		    	return IS_ALLOWED;
     		}
     		else{
-    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because pSetMan is NULL");
-    			return GOT_ERROR;
+    			int output;
+    			PrivacyDebugger.w(PRIVACY_TAG, "can't parse packages, going to apply default deny mode");
+    			if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+    				output = IS_NOT_ALLOWED;
+    			} else {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+    				output = IS_ALLOWED;
+    			}
+    			return output;
     		}
+    		
     	}
     	catch (Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed");
-    		return GOT_ERROR;
+    		PrivacyDebugger.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed()", e);
+    		int output;
+    		PrivacyDebugger.e(PRIVACY_TAG, "got error while trying to check permission. Going to apply default deny mode.");
+    		if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+				output = IS_NOT_ALLOWED;
+			} else {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+				output = IS_ALLOWED;
+			}
+    		return output;
     	}
-    }
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone.");
-	}
     }
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,26 +186,16 @@ public final class MicrophoneInputStream extends InputStream {
      */
     public MicrophoneInputStream(int sampleRate, int fifoDepth) throws IOException {
 
-
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  	//BEGIN PRIVACY
-	if(!privacyMode){
-    		initiate();
-    	}
-	if(checkIfPackagesAllowed() == IS_NOT_ALLOWED){
-		dataAccess(false);
-		String packageName[] = getPackageName();
-		if(packageName != null)
-			pSetMan.notification(packageName[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null, pSetMan.getSettings(packageName[0], Process.myUid()));
-		throw new IOException("AudioRecord constructor failed - busy?");
-	}
-	dataAccess(true);
-	String packageName[] = getPackageName();
-	if(packageName != null)
-		pSetMan.notification(packageName[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null, pSetMan.getSettings(packageName[0], Process.myUid())); 
- 	//END PRIVACY
-   	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+		//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	  	//BEGIN PRIVACY
+		if(!privacyMode) {
+	    		initiate();
+	    }
+		if(checkIfPackagesAllowed() == IS_NOT_ALLOWED) {
+			throw new IOException("AudioRecord constructor failed - busy?");
+		}
+	 	//END PRIVACY
+	   	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         mAudioRecord = AudioRecordNew(sampleRate, fifoDepth);
         if (mAudioRecord == 0) throw new IOException("AudioRecord constructor failed - busy?");

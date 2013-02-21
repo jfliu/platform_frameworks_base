@@ -1746,6 +1746,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         // do this before we broadcast the change
         handleConnectivityChange(prevNetType, doReset);
 
+	//Debug--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	Slog.i("PrivacyDebug", "CONNECTIVITY_ACTION_IMMEDIATE Broadcast [handleDisconnect(NetworkInfo info)]");
+	//Debug--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
         final Intent immediateIntent = new Intent(intent);
         immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
         sendStickyBroadcast(immediateIntent);
@@ -1910,9 +1914,13 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 intent.putExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, true);
             }
         }
-
+	
+	//Debug--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	Slog.i("PrivacyDebug", "CONNECTIVITY_ACTION_IMMEDIATE Broadcast [handleConnectionFailure(NetworkInfo info)]");
+	//Debug--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		
         intent.putExtra(ConnectivityManager.EXTRA_INET_CONDITION, mDefaultInetConditionPublished);
-
+	
         final Intent immediateIntent = new Intent(intent);
         immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
         sendStickyBroadcast(immediateIntent);

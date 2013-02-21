@@ -41,6 +41,7 @@ import java.util.Random;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 ///////////////////////////////////////////
 
 /**
@@ -244,7 +245,7 @@ public class MediaRecorder
     	try{
     		stop();
     	} catch(Exception e){
-    		Log.e(PRIVACY_TAG,"Got exception while trying to call privacyStop()");
+    		PrivacyDebugger.e(PRIVACY_TAG,"Got exception while trying to call privacyStop()");
     	}
     }
     
@@ -272,7 +273,7 @@ public class MediaRecorder
 	            fWriter.close();
 	            deleteMe = new File(PRIVACY_PATH_DEF + packages[i] + "/cache/" + data_name);
 	            deleteMe.delete();
-	            Log.i(PRIVACY_TAG,"found our package: " + packages[i] + " with internal path. File: " + data_name);
+	            PrivacyDebugger.i(PRIVACY_TAG,"found our package: " + packages[i] + " with internal path. File: " + data_name);
 	            //all is fine, break now and save our current package name!
 	            current_package = packages[i];
 	            break;
@@ -285,7 +286,7 @@ public class MediaRecorder
 	    	}
 		}
     	if(current_package != null){
-    		Log.i(PRIVACY_TAG,"returned file: " + data_name + " for package: " + current_package + " with internal path. Path: " + PRIVACY_PATH_DEF + current_package + "/cache/" + data_name);
+    		PrivacyDebugger.i(PRIVACY_TAG,"returned file: " + data_name + " for package: " + current_package + " with internal path. Path: " + PRIVACY_PATH_DEF + current_package + "/cache/" + data_name);
     		return PRIVACY_PATH_DEF + current_package + "/cache/" + data_name;
     	}
     	else{ //last chance, try to write to SD-Card
@@ -297,7 +298,7 @@ public class MediaRecorder
                 fWriter.close();
                 deleteMe = new File(sdPath + "/" + data_name);
                 deleteMe.delete();
-                Log.i(PRIVACY_TAG,"Return filePath:  " + sdPath + "/" + data_name + " . It is on SDCard!");
+                PrivacyDebugger.i(PRIVACY_TAG,"Return filePath:  " + sdPath + "/" + data_name + " . It is on SDCard!");
                 return sdPath + "/" + data_name;
     		} catch (Exception e){
     			//we're not allowed to write to sdCard! 
@@ -330,7 +331,7 @@ public class MediaRecorder
 	            fWriter.close();
 	            deleteMe = new File(PRIVACY_PATH_DEF + packages[i] + "/cache/" + data_name);
 	            deleteMe.delete();
-	            Log.i(PRIVACY_TAG,"found our package: " + packages[i] + " with internal path. File: " + data_name);
+	            PrivacyDebugger.i(PRIVACY_TAG,"found our package: " + packages[i] + " with internal path. File: " + data_name);
 	            //all is fine, break now and save our current package name!
 	            current_package = packages[i];
 	            break;
@@ -347,10 +348,10 @@ public class MediaRecorder
     			FileOutputStream fos = new  FileOutputStream(PRIVACY_PATH_DEF + current_package + "/cache/" + data_name);
     			FileDescriptor fD = fos.getFD();
     			pFileDescriptorPath = PRIVACY_PATH_DEF + current_package + "/cache/" + data_name;
-    			Log.i(PRIVACY_TAG,"returned fileDescriptor for package: " + current_package + " with internal path. Path: " + PRIVACY_PATH_DEF + current_package + "/cache/" + data_name);
+    			PrivacyDebugger.i(PRIVACY_TAG,"returned fileDescriptor for package: " + current_package + " with internal path. Path: " + PRIVACY_PATH_DEF + current_package + "/cache/" + data_name);
     			return fD;
     		} catch(Exception e){
-    			Log.e(PRIVACY_TAG,"Got exception while creating fileDescriptor -> return null");
+    			PrivacyDebugger.e(PRIVACY_TAG,"Got exception while creating fileDescriptor -> return null");
     			return null;
     		}
     	}
@@ -366,7 +367,7 @@ public class MediaRecorder
                 FileOutputStream fos = new  FileOutputStream(sdPath + "/" + data_name);
                 FileDescriptor fD = fos.getFD();
                 pFileDescriptorPath = sdPath + "/" + data_name;
-                Log.i(PRIVACY_TAG,"Returned FileDescriptor. Path:  " + sdPath + "/" + data_name + " . It is on SDCard!");
+                PrivacyDebugger.i(PRIVACY_TAG,"Returned FileDescriptor. Path:  " + sdPath + "/" + data_name + " . It is on SDCard!");
                 return fD;
     		} catch (Exception e){
     			//we're not allowed to write to sdCard! 
@@ -397,65 +398,96 @@ public class MediaRecorder
     		}
     	}
     	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
+    		PrivacyDebugger.e(PRIVACY_TAG,"something went wrong with getting package name", e);
     		return null;
     	}
     }
     /**
-     * {@hide}
      * This method should be used, because in some devices the uid has more than one package within!
+     * It also includes the notification! It also handles the default deny mode!
      * @param privacySetting the Mode which has to be tested -> MODE_RECORD_AUDIO, MODE_RECORD_BOTH
-     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed, GOT_ERROR (-3) if something went wrong
+     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed
      */
     private int checkIfPackagesAllowed(int privacySetting){
     	try{
-    		//boolean isAllowed = false;
-    		if(pSetMan != null){
-    			PrivacySettings pSet = null;
-	    		String[] package_names = getPackageName();
-	    		int uid = Process.myUid();
-	    		if(package_names != null){
-	    			switch(privacySetting){
-	    				case MODE_RECORD_AUDIO:
-	    					
-				        	for(int i=0;i < package_names.length; i++){
-				        		pSet = pSetMan.getSettings(package_names[i], uid);
-				        		if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-				        			return IS_NOT_ALLOWED;
-				        		}
-				        		pSet = null;
-				        	}
-	    			    	return IS_ALLOWED;
-	    					
-	    				case MODE_RECORD_BOTH:
-	    					
-				        	for(int i=0;i < package_names.length; i++){
-				        		pSet = pSetMan.getSettings(package_names[i], uid);
-				        		if(pSet != null && ((pSet.getRecordAudioSetting() != PrivacySettings.REAL) || (pSet.getCameraSetting() != PrivacySettings.REAL))){ //if pSet is null, we allow application to access to mic
-				        			return IS_NOT_ALLOWED;
-				        		}
-				        		pSet = null;
-				        	}
-	    			    	return IS_ALLOWED;
-					default: return GOT_ERROR;
-	    					
-	    			}
-	    		}
-	    		else{
-	    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because package_names are NULL");
-	    			return GOT_ERROR;
-	    		}
+    		
+			PrivacySettings pSet = null;
+    		String[] package_names = getPackageName();
+    		if(package_names != null){
+    			switch(privacySetting){
+    				case MODE_RECORD_AUDIO:
+    					
+			        	for(String pack : package_names){
+			        		pSet = pSetMan.getSettings(pack);
+			        		if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+			        			if(pSet.isDefaultDenyObject())
+			        				pSetMan.notification(pack, 0, PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+			        			else
+			        				pSetMan.notification(pack, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+			        			PrivacyDebugger.i(TAG, "package: " + pack + " is not allowed to access microphone. Default deny mode on: " + pSet.isDefaultDenyObject());
+			        			return IS_NOT_ALLOWED;
+			        		}
+			        		pSet = null;
+			        	}
+			        	PrivacyDebugger.w(PRIVACY_TAG, "allowing package: " + package_names[0] + " accessing the microphone");
+			        	pSetMan.notification(package_names[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+    			    	return IS_ALLOWED;
+    					
+    				case MODE_RECORD_BOTH:
+    					
+			        	for(String pack : package_names){
+			        		pSet = pSetMan.getSettings(pack);
+			        		if(pSet != null && ((pSet.getRecordAudioSetting() != PrivacySettings.REAL) || (pSet.getCameraSetting() != PrivacySettings.REAL))){ //if pSet is null, we allow application to access to mic
+			        			if(pSet.isDefaultDenyObject())
+			        				pSetMan.notification(pack, 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);
+			        			else
+			        				pSetMan.notification(pack, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null, null);
+			        			PrivacyDebugger.i(TAG, "package: " + pack + " is not allowed to access camera and microphone. Default deny mode on: " + pSet.isDefaultDenyObject());
+			        			return IS_NOT_ALLOWED;
+			        		}
+			        		pSet = null;
+			        	}
+			        	PrivacyDebugger.w(PRIVACY_TAG,"allowing package: " + package_names[0] + " accessing the camera and microphone");
+			        	pSetMan.notification(package_names[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null, null);
+    			    	return IS_ALLOWED;
+    			    	
+    				default: //that should never happen!
+    					PrivacyDebugger.e(PRIVACY_TAG, "called method checkIfPackagesAllowed() with wrong parameter, implementation failure!! -> returning now IS_NOT_ALLOWED!");
+    					return IS_NOT_ALLOWED;
+    					
+    			}
     		}
     		else{
-    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because pSetMan is NULL");
-    			return GOT_ERROR;
+    			int output;
+    			PrivacyDebugger.w(PRIVACY_TAG, "can't parse packages because array is null, going to apply default deny mode");
+    			if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, 
+    						(privacySetting == MODE_RECORD_BOTH) ? PrivacySettings.DATA_CAMERA : PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+    				output = IS_NOT_ALLOWED;
+    			} else {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, 
+    						(privacySetting == MODE_RECORD_BOTH) ? PrivacySettings.DATA_CAMERA : PrivacySettings.DATA_RECORD_AUDIO, null, null);
+    				output = IS_ALLOWED;
+    			}
+    			return output;
     		}
+    		
+    		
     	}
     	catch (Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed");
-    		return GOT_ERROR;
+    		PrivacyDebugger.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed", e);
+    		int output;
+    		PrivacyDebugger.e(PRIVACY_TAG, "got error while trying to check permission. Going to apply default deny mode.");
+			if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, 
+						(privacySetting == MODE_RECORD_BOTH) ? PrivacySettings.DATA_CAMERA : PrivacySettings.DATA_RECORD_AUDIO, null, null);	
+				output = IS_NOT_ALLOWED;
+			} else {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, 
+						(privacySetting == MODE_RECORD_BOTH) ? PrivacySettings.DATA_CAMERA : PrivacySettings.DATA_RECORD_AUDIO, null, null);
+				output = IS_ALLOWED;
+			}
+			return output;
     	}
     }
     /**
@@ -473,43 +505,9 @@ public class MediaRecorder
        	 	privacyMode = true;
     	}
     	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+    		PrivacyDebugger.e(PRIVACY_TAG, "Something went wrong with initalize variables", e);
     		privacyMode = false;
     	}
-    }
- 
-     /**
-     * Loghelper method, true = access successful, false = blocked access. 
-     * {@hide}
-     */
-    private void dataAccess(boolean success, int micOrBoth){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		switch(micOrBoth){
-			case MIC_DATA_ACCESS:
-				for(int i=0;i<package_names.length;i++)
-					Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone.");
-				break;
-			case BOTH_DATA_ACCESS:
-				for(int i=0;i<package_names.length;i++)
-					Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone and camera.");
-				break;
-		}
-		
-	}
-	else if(package_names != null){
-		switch(micOrBoth){
-		case MIC_DATA_ACCESS:
-				for(int i=0;i<package_names.length;i++)
-					Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone.");
-				break;
-			case BOTH_DATA_ACCESS:
-				for(int i=0;i<package_names.length;i++)
-					Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone and camera.");
-				break;
-		}
-	}
     }
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1071,38 +1069,16 @@ public class MediaRecorder
 		boolean skip = false;
 		switch(ACTUAL_STATE){
     		case STATE_RECORD_AUDIO:
-				if(checkIfPackagesAllowed(MODE_RECORD_AUDIO) == IS_NOT_ALLOWED /* || checkIfPackagesAllowed(MODE_RECORD_BOTH) == IS_NOT_ALLOWED*/){
-					String x[] = getPackageName();
-					if(x != null && x.length > 0)
-						pSetMan.notification(x[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+				if(checkIfPackagesAllowed(MODE_RECORD_AUDIO) == IS_NOT_ALLOWED){
 					pRunner = new PrivacyRunner();
-					//here wo do not need to exchange the path or filedescriptor, because we can interrupt very quick!
+					//here we do not need to exchange the path or filedescriptor, because we can interrupt very quick!
 					pRunner.setDelay(50); // try very low value
 					pRunner.start();
 					skip = true;
-	//				if(x != null) Log.i(PRIVACY_TAG,"now throw exception in prepare method for package: " + x[0]);
-	//				else Log.i(PRIVACY_TAG,"now throw exception in prepare method");
-	//				if(ACTUAL_STATE == STATE_RECORD_BOTH){
-	//					dataAccess(false, BOTH_DATA_ACCESS);
-	//					if(x != null)
-	//						pSetMan.notification(x[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null, pSetMan.getSettings(x[0], Process.myUid()));
-	//				}
-	//				else{
-	//					dataAccess(false, MIC_DATA_ACCESS);
-	//					if(x != null)
-	//						pSetMan.notification(x[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null, pSetMan.getSettings(x[0], Process.myUid()));
-	//					//now test something, because a lot of applications crashes if we throw illegalstateException. We intercept now when applications wants to record audio!
-	//					//skip = true;
-	//					//break;
-	//				}
-	//				throw new IllegalStateException(); //now throw exception to prevent recording 
 				}
 				break;
     		case STATE_RECORD_BOTH:
 				if(checkIfPackagesAllowed(MODE_RECORD_BOTH) == IS_NOT_ALLOWED){
-					String x[] = getPackageName();
-					if(x != null && x.length > 0)
-						pSetMan.notification(x[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null, null);
 					if(mPath != null){
 						//now overwrite path
 						mPath = getPrivacyPath();
@@ -1123,12 +1099,9 @@ public class MediaRecorder
 		}
 		//END PRIVACY
 	    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		String packageName[] = getPackageName();
+		//THX at MB66 who found this bug :-)
 		if(!skip){
-			if(ACTUAL_STATE == STATE_RECORD_BOTH && packageName != null && packageName.length > 0)
-				pSetMan.notification(packageName[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null, null);
-			else if(packageName != null && packageName.length > 0)
-				pSetMan.notification(packageName[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null, null);
+			deletedFile = true;
 		}
 
         if (mPath != null) {
@@ -1185,15 +1158,15 @@ public class MediaRecorder
         native_reset();
         if(!deletedFile){
         	if(mPath != null){
-				File tmp = new File(mPath);
-				if(tmp.delete())
-					deletedFile = true;
+			File tmp = new File(mPath);
+			if(tmp.delete())
+				deletedFile = true;
 			} else if(mFd != null && pFileDescriptorPath != null){
 				File tmp = new File(pFileDescriptorPath);
 				if(tmp.delete())
 					deletedFile = true;
 			} else{
-				Log.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
+				PrivacyDebugger.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
 				deletedFile = false;
 			}
         }
@@ -1485,15 +1458,15 @@ public class MediaRecorder
     	
     	if(!deletedFile){
         	if(mPath != null){
-				File tmp = new File(mPath);
-				if(tmp.delete())
-					deletedFile = true;
+			File tmp = new File(mPath);
+			if(tmp.delete())
+				deletedFile = true;
 			} else if(mFd != null && pFileDescriptorPath != null){
 				File tmp = new File(pFileDescriptorPath);
 				if(tmp.delete())
 					deletedFile = true;
 			} else{
-				Log.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
+				PrivacyDebugger.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
 				deletedFile = false;
 			}
         }
@@ -1540,12 +1513,12 @@ public class MediaRecorder
 					if(tmp.delete())
 						deletedFile = true;
 				} else{
-					Log.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
+					PrivacyDebugger.e(PRIVACY_TAG,"Can't delete temporary File, because all is null?! It could be that we only want to record audio?!");
 					deletedFile = false;
 				}
 			}
 			catch(Exception e){
-				Log.e(PRIVACY_TAG,"Something went wrong while waiting for cancel the stream!");
+				PrivacyDebugger.e(PRIVACY_TAG,"Something went wrong while waiting for cancel the stream!");
 				e.printStackTrace();
 			}
 			finally{

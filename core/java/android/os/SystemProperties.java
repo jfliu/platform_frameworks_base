@@ -29,6 +29,7 @@ import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 
 import android.content.Context;
 import android.content.pm.IPackageManager;
@@ -98,8 +99,7 @@ public class SystemProperties
     		}
     	}
     	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
+    		PrivacyDebugger.e(PRIVACY_TAG,"something went wrong with getting package name", e);
     		return null;
     	}
     }
@@ -118,63 +118,64 @@ public class SystemProperties
     	}
     	catch(Exception e){
     		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+    		PrivacyDebugger.e(PRIVACY_TAG, "Something went wrong with initalize variables");
     		privacyMode = false;
     	}
     }
     /**
-     * {@hide}
      * This method should be used, because in some devices the uid has more than one package within!
-     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed, GOT_ERROR (-3) if something went wrong
+     * It also includes the notification! It also handles the default deny mode!
+     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed
      */
     private static int checkIfPackagesAllowed(){
     	try{
-    		//boolean isAllowed = false;
-    		if(pSetMan != null){
-    			PrivacySettings pSet = null;
-	    		String[] package_names = getPackageName();
-	    		int uid = Process.myUid();
-	    		if(package_names != null){
-	    		
-		        	for(int i=0;i < package_names.length; i++){
-		        		pSet = pSetMan.getSettings(package_names[i], uid);
-		        		if(pSet != null && (pSet.getNetworkInfoSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-		        			return IS_NOT_ALLOWED;
-		        		}
-		        		pSet = null;
-		        	}
-			    	return IS_ALLOWED;
-	    		}
-	    		else{
-	    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because package_names are NULL");
-	    			return GOT_ERROR;
-	    		}
+    		if(pSetMan == null) 
+    			pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+			PrivacySettings pSet = null;
+    		String[] package_names = getPackageName();
+    		if(package_names != null){
+	        	for(String pack : package_names){
+	        		pSet = pSetMan.getSettings(pack);
+	        		if(pSet != null && (pSet.getNetworkInfoSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+	        			if(pSet.isDefaultDenyObject())
+	        				pSetMan.notification(pack, 0, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);
+	        			else
+	        				pSetMan.notification(pack, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);
+	        			PrivacyDebugger.i(PRIVACY_TAG, "checkIfPackagesAllowed - package: " + pack + " is not allowed to network - info Default deny mode on: " + pSet.isDefaultDenyObject());
+	        			return IS_NOT_ALLOWED;
+	        		}
+	        		pSet = null;
+	        	}
+	        	PrivacyDebugger.w(PRIVACY_TAG,"checkIfPackagesAllowed - allowing package: " + package_names[0] + " accessing network info");
+	        	pSetMan.notification(package_names[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);
+		    	return IS_ALLOWED;
+    		} else {
+    			int output;
+    			PrivacyDebugger.w(PRIVACY_TAG, "checkIfPackagesAllowed - can't parse packages, going to apply default deny mode");
+    			if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);	
+    				output = IS_NOT_ALLOWED;
+    			} else {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);	
+    				output = IS_ALLOWED;
+    			}
+    			return output;
     		}
-    		else{
-    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because pSetMan is NULL");
-    			return GOT_ERROR;
-    		}
+    		
     	}
     	catch (Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed");
-    		return GOT_ERROR;
+    		PrivacyDebugger.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed()", e);
+    		int output;
+    		PrivacyDebugger.e(PRIVACY_TAG, "checkIfPackagesAllowed - got error while trying to check permission. Going to apply default deny mode.");
+    		if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);	
+				output = IS_NOT_ALLOWED;
+			} else {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);	
+				output = IS_ALLOWED;
+			}
+    		return output;
     	}
-    }
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private static void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing networkinfo.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing networkinfo.");
-	}
     }
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
@@ -193,10 +194,8 @@ public class SystemProperties
             key.equals(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC)     ){
 		initiate();
 		if (checkIfPackagesAllowed() == IS_NOT_ALLOWED) {
-			dataAccess(false);
 			return "";
 		}
-		dataAccess(true);
 	}
         return native_get(key);
     }
@@ -214,10 +213,8 @@ public class SystemProperties
             key.equals(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC)     ){
 		initiate();
 		if (checkIfPackagesAllowed() == IS_NOT_ALLOWED) {
-			dataAccess(false);
 			return "";
 		}
-		dataAccess(true);
 	}
         return native_get(key, def);
     }

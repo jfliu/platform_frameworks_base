@@ -18,6 +18,7 @@ package android.net.wifi;
 
 import android.os.Parcelable;
 import android.os.Parcel;
+import android.privacy.utilities.PrivacyConstants;
 import android.net.NetworkInfo.DetailedState;
 import android.net.NetworkUtils;
 import android.text.TextUtils;
@@ -61,7 +62,7 @@ public class WifiInfo implements Parcelable {
     private String mBSSID;
     private WifiSsid mWifiSsid;
     private int mNetworkId;
-    private boolean mHiddenSSID;
+    private boolean mHiddenSSID;	
     /** Received Signal Strength Indicator */
     private int mRssi;
 
@@ -85,13 +86,15 @@ public class WifiInfo implements Parcelable {
      * @hide
      */
     public WifiInfo(boolean fake){
-	mSSID = "";
+    	mWifiSsid = null; //nothing should happen -> better performance
         mBSSID = "";
         mNetworkId = -1;
         mSupplicantState = SupplicantState.UNINITIALIZED;
         mRssi = -9999;
         mLinkSpeed = -1;
         mHiddenSSID = false;
+        mMacAddress = PrivacyConstants.Network.WiFi.getMacAddress();
+        mMeteredHint = true;
     }
     //---------------------------------------------------------------------------------------------------------------
 

@@ -227,6 +227,7 @@ class ServerThread extends Thread {
             ServiceManager.addService(Context.DISPLAY_SERVICE, display, true);
 
             Slog.i(TAG, "Telephony Registry");
+            //telephonyRegistry = new TelephonyRegistry(context);
             telephonyRegistry = new PrivacyTelephonyRegistry(context);
             ServiceManager.addService("telephony.registry", telephonyRegistry);
 

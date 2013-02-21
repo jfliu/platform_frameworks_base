@@ -16,23 +16,27 @@
 
 package android.telephony;
 
-// BEGIN privacy-added
-import com.android.internal.telephony.IPhoneStateListener;
-import android.privacy.PrivacySettings;
-import android.privacy.PrivacySettingsManager;
-import android.content.Context;
-// END privacy-added
-
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-//import android.telephony.ServiceState;
-//import android.telephony.SignalStrength;
-//import android.telephony.CellLocation;
+import android.os.ServiceManager;
+import android.telephony.ServiceState;
+import android.telephony.SignalStrength;
+import android.telephony.CellLocation;
 import android.telephony.CellInfo;
-//import android.util.Log;
+import android.util.Log;
 
-//import com.android.internal.telephony.IPhoneStateListener;
+// BEGIN privacy-added
+import android.privacy.IPrivacySettingsManager;
+import android.privacy.PrivacySettings;
+import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
+import android.content.Context;
+// END privacy-added
+
+
+import com.android.internal.telephony.IPhoneStateListener;
 
 import java.util.List;
 
@@ -176,7 +180,7 @@ public class PhoneStateListener {
         this.context = context;
     }
     
-    /** {@hide} */
+
     public void setPackageName(String packageName) {
         this.packageName = packageName;
     }
@@ -185,6 +189,7 @@ public class PhoneStateListener {
     public void setUid(int uid) {
         this.uid = uid;
     }    
+    
     // END privacy-added
  
 
@@ -347,49 +352,71 @@ public class PhoneStateListener {
 
         public void onCellLocationChanged(Bundle bundle) {
             CellLocation location = CellLocation.newFromBundle(bundle);
-            //Message.obtain(mHandler, LISTEN_CELL_LOCATION, 0, 0, location).sendToTarget();
             // BEGIN privacy-modified
             if (context != null) {
-                PrivacySettingsManager pSetMan = (PrivacySettingsManager) context.getSystemService("privacy");
-                PrivacySettings pSet = pSetMan.getSettings(packageName, uid);
-//                String output;
+                PrivacySettingsManager pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+                PrivacySettings pSet = pSetMan.getSettings(packageName);
+                String output;
                 if (pSet != null && pSet.getLocationNetworkSetting() != PrivacySettings.REAL) {
                     // simply block the method call, since simulating cell location is not feasible
-//                    output = "[no output]";
-                    pSetMan.notification(packageName, uid, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);            
+                    output = "[no output]";
+                    if(pSet.isDefaultDenyObject())
+                    	pSetMan.notification(packageName, 0, PrivacySettings.ERROR, PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);
+                    else
+                    	pSetMan.notification(packageName, 0, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);
                 } else {
-//                    output = location.toString();
+                    output = location.toString();
                     Message.obtain(mHandler, LISTEN_CELL_LOCATION, 0, 0, location).sendToTarget();
-                    pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);            
+                    if(pSet != null && pSet.isDefaultDenyObject())
+                    	pSetMan.notification(packageName, 0, PrivacySettings.ERROR, PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);         
+                    else
+                    	pSetMan.notification(packageName, 0, PrivacySettings.REAL, PrivacySettings.DATA_LOCATION_NETWORK, null, pSet);       
                 }
-//                Log.d(TAG, "onCellLocationChanged - " + context.getPackageName() + " (" + 
-//                        Binder.getCallingUid() + ") output: " + output);
+                PrivacyDebugger.d(TAG, "onCellLocationChanged - " + context.getPackageName() + " (" + Binder.getCallingUid() + ") output: " + output);
+            } else {
+            	PrivacyDebugger.w(TAG, "onCellLocationChanged - cannot handle privacy because context is null -> empty");
             }
             // END privacy-modified
         }
 
         public void onCallStateChanged(int state, String incomingNumber) {
-            //Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, incomingNumber).sendToTarget();
             // BEGIN privacy-modified
-//            Log.d(TAG, "onCallStateChanged - state:" + state + " incoming number:" + incomingNumber);
+            PrivacyDebugger.d(TAG, "onCallStateChanged - state:" + state + " incoming number:" + incomingNumber);
             // only take action if an incoming phone number is actually transmitted
             if (context != null && incomingNumber != null && !incomingNumber.isEmpty()) {
-                PrivacySettingsManager pSetMan = (PrivacySettingsManager) context.getSystemService("privacy");
-                PrivacySettings pSet = pSetMan.getSettings(packageName, uid);
+                PrivacySettingsManager pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+                PrivacySettings pSet = pSetMan.getSettings(packageName);
                 String output;
                 if (pSet != null && pSet.getIncomingCallsSetting() != PrivacySettings.REAL) {
                     output = "";
                     Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, output).sendToTarget();
-//                    Log.d(TAG, "onCallStateChanged BLOCK - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + output);
-                    pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_INCOMING_CALL, output, pSet);
+                    PrivacyDebugger.d(TAG, "onCallStateChanged BLOCK - package:" + ((packageName != null) ? packageName : "unknown") + " state:" + state + " output: " + output);
+                    if(pSet.isDefaultDenyObject())
+                    	pSetMan.notification(packageName, 0, PrivacySettings.ERROR, PrivacySettings.DATA_INCOMING_CALL, output, pSet);
+                    else
+                    	pSetMan.notification(packageName, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_INCOMING_CALL, output, pSet);
                 } else {
                     Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, incomingNumber).sendToTarget();
-//                    Log.d(TAG, "onCallStateChanged REAL 1 - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + incomingNumber);
-                    pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_INCOMING_CALL, incomingNumber, pSet);
+                    PrivacyDebugger.d(TAG, "onCallStateChanged REAL - package:" + ((packageName != null) ? packageName : "unknown") + " state:" + state + " output: " + incomingNumber);
+                    if(pSet != null && pSet.isDefaultDenyObject())
+                    	pSetMan.notification(packageName, 0, PrivacySettings.ERROR, PrivacySettings.DATA_INCOMING_CALL, incomingNumber, pSet);
+                    else
+                    	pSetMan.notification(packageName, 0, PrivacySettings.REAL, PrivacySettings.DATA_INCOMING_CALL, incomingNumber, pSet);
                 }
             } else {
-//                Log.d(TAG, "onCallStateChanged REAL 2 - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + incomingNumber);
-                Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, incomingNumber).sendToTarget();
+                PrivacyDebugger.e(TAG, "can't handle privacySettings because context is null?!");
+                PrivacyDebugger.d(TAG, "onCallStateChanged default deny");
+                switch(PrivacySettings.CURRENT_DEFAULT_DENY_MODE) {
+                	case PrivacySettings.DEFAULT_DENY_EMPTY:
+                	case PrivacySettings.DEFAULT_DENY_RANDOM:
+                		PrivacyDebugger.w(TAG, "default deny is empty or random, now handle callStateChanged - package: " +  ((packageName != null) ? packageName : "unknown") + " Output:" + ((incomingNumber != null) ? "EMPTY" : "NULL"));
+                        Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, ((incomingNumber != null) ? "" : null)).sendToTarget();
+                        break;
+                	case PrivacySettings.DEFAULT_DENY_REAL:
+                		PrivacyDebugger.w(TAG, "default deny is real, now handle callStateChanged - package: " +  ((packageName != null) ? packageName : "unknown") + " Output: REAL_VALUE");
+                		Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, incomingNumber).sendToTarget();
+                		break;
+                }
             }
             // END privacy-modified
         }

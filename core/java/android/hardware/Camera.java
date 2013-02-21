@@ -46,6 +46,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 
 import android.content.Context;
 import android.content.pm.IPackageManager;
@@ -226,7 +227,7 @@ public class Camera {
     	}
     	catch(Exception e){
     		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
+    		PrivacyDebugger.e(PRIVACY_TAG,"something went wrong with getting package name");
     		return null;
     	}
     }
@@ -249,7 +250,7 @@ public class Camera {
 		return helper.toByteArray();
 	}
 	catch (Exception e){
-		Log.e(PRIVACY_TAG,"something went wrong with getting the picture!");
+		PrivacyDebugger.e(PRIVACY_TAG,"something went wrong with getting the picture!");
 		e.printStackTrace();
 		return null;
 	}
@@ -269,66 +270,67 @@ public class Camera {
     	}
     	catch(Exception e){
     		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+    		PrivacyDebugger.e(PRIVACY_TAG, "Something went wrong with initalize variables");
     		privacyMode = false;
     	}
     }
 
     /**
-     * {@hide}
      * This method should be used, because in some devices the uid has more than one package within!
-     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed, GOT_ERROR (-3) if something went wrong
+     * It also includes the notification! It also handles the default deny mode!
+     * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed
      */
     private int checkIfPackagesAllowed(){
     	try{
-    		//boolean isAllowed = false;
-    		if(pSetMan != null){
-    			PrivacySettings pSet = null;
-	    		String[] package_names = getPackageName();
-	    		int uid = Process.myUid();
-	    		if(package_names != null){
-	    		
-		        	for(int i=0;i < package_names.length; i++){
-		        		pSet = pSetMan.getSettings(package_names[i], uid);
-		        		if(pSet != null && (pSet.getCameraSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-		        			return IS_NOT_ALLOWED;
-		        		}
-		        		pSet = null;
-		        	}
-			    	return IS_ALLOWED;
-	    		}
-	    		else{
-	    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because package_names are NULL");
-	    			return GOT_ERROR;
-	    		}
+    		if(pSetMan == null) 
+    			pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+			PrivacySettings pSet = null;
+    		String[] package_names = getPackageName();
+    		if(package_names != null){
+	        	for(String pack : package_names){
+	        		pSet = pSetMan.getSettings(pack);
+	        		if(pSet != null && (pSet.getCameraSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+	        			if(pSet.isDefaultDenyObject())
+	        				pSetMan.notification(pack, 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);
+	        			else
+	        				pSetMan.notification(pack, 0, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null, null);
+	        			PrivacyDebugger.i(TAG, "package: " + pack + " is not allowed to access camera. Default deny mode on: " + pSet.isDefaultDenyObject());
+	        			return IS_NOT_ALLOWED;
+	        		}
+	        		pSet = null;
+	        	}
+	        	PrivacyDebugger.w(PRIVACY_TAG,"allowing package: " + package_names[0] + " accessing the camera");
+	        	pSetMan.notification(package_names[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null, null);
+		    	return IS_ALLOWED;
     		}
     		else{
-    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because pSetMan is NULL");
-    			return GOT_ERROR;
+    			int output;
+    			PrivacyDebugger.w(PRIVACY_TAG, "can't parse packages, going to apply default deny mode");
+    			if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);	
+    				output = IS_NOT_ALLOWED;
+    			} else {
+    				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);	
+    				output = IS_ALLOWED;
+    			}
+    			return output;
     		}
     	}
     	catch (Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed");
-    		return GOT_ERROR;
+    		int output;
+    		PrivacyDebugger.e(PRIVACY_TAG, "got error while trying to check permission. Going to apply default deny mode.", e);
+    		if(PrivacySettings.CURRENT_DEFAULT_DENY_MODE != PrivacySettings.DEFAULT_DENY_REAL) {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);	
+				output = IS_NOT_ALLOWED;
+			} else {
+				pSetMan.notification("UNKNOWN", 0, PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null, null);	
+				output = IS_ALLOWED;
+			}
+    		return output;
     	}
     }
     
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing camera.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing camera.");
-	}
-    }
+    
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -929,25 +931,16 @@ public class Camera {
 
         @Override
         public void handleMessage(Message msg) {
-	    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //BEGIN PRIVACY
 
-	    boolean access = true;
-	    if(!privacyMode){
-		initiate();
-	    }
-	    String packageName[] = getPackageName();
-	    if(checkIfPackagesAllowed() == IS_NOT_ALLOWED){
-		access = false;
-		dataAccess(false);
-		if(packageName != null)
-			pSetMan.notification(packageName[0], 0, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null, pSetMan.getSettings(packageName[0], Process.myUid()));
-	    }
-	    else{
-		dataAccess(true);
-		if(packageName != null)
-			pSetMan.notification(packageName[0], 0, PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null, pSetMan.getSettings(packageName[0], Process.myUid()));
-	    }
+		    boolean access = true;
+		    if(!privacyMode){
+		    	initiate();
+		    }
+		    if(checkIfPackagesAllowed() == IS_NOT_ALLOWED){
+				access = false;
+		    }
 
 
             switch(msg.what) {
@@ -959,19 +952,19 @@ public class Camera {
 
             case CAMERA_MSG_RAW_IMAGE:
                 if (mRawImageCallback != null) {
-		    if(access)
+                	if(access)
                     	mRawImageCallback.onPictureTaken((byte[])msg.obj, mCamera);
-		    else
-			mRawImageCallback.onPictureTaken(null, mCamera);//this normally doesn't get a call, because we disabled this receiver in takepicture method!
+		    		else
+		    			mRawImageCallback.onPictureTaken(null, mCamera);//this normally doesn't get a call, because we disabled this receiver in takepicture method!
                 }
                 return;
 
             case CAMERA_MSG_COMPRESSED_IMAGE:
                 if (mJpegCallback != null) {
-		    if(access)
+                	if(access)
                     	mJpegCallback.onPictureTaken((byte[])msg.obj, mCamera);
-		    else
-			mJpegCallback.onPictureTaken(getFakeImage(), mCamera);
+                	else
+                		mJpegCallback.onPictureTaken(getFakeImage(), mCamera);
                 }
                 return;
 
@@ -989,21 +982,19 @@ public class Camera {
                         // Set to oneshot mode again.
                         setHasPreviewCallback(true, false);
                     }
-                    //pCb.onPreviewFrame((byte[])msg.obj, mCamera);
                     if(access)
-                        pCb.onPreviewFrame((byte[])msg.obj, mCamera);//leave the camera the preview frame!
+                    	pCb.onPreviewFrame((byte[])msg.obj, mCamera);//leave the camera the preview frame!
                     else
-                        pCb.onPreviewFrame(getFakeImage(), mCamera);//here we go testing if it is able to give preview of fake image, if it doesn't work -> pass null
+                    	pCb.onPreviewFrame(getFakeImage(), mCamera);
                 }
                 return;
 
             case CAMERA_MSG_POSTVIEW_FRAME:
                 if (mPostviewCallback != null) {
-                    //mPostviewCallback.onPictureTaken((byte[])msg.obj, mCamera);
-                    if(access)
-                        mPostviewCallback.onPictureTaken((byte[])msg.obj, mCamera);
-                    else
-                        mPostviewCallback.onPictureTaken(getFakeImage(), mCamera);//same as in onpreviewframe -> give test fake image
+                	if(access)
+                		mPostviewCallback.onPictureTaken((byte[])msg.obj, mCamera);
+                	else
+                		mPostviewCallback.onPictureTaken(getFakeImage(), mCamera);
                 }
                 return;
 
@@ -1294,25 +1285,18 @@ public class Camera {
         mJpegCallback = jpeg;
 
 
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //BEGIN PRIVACY
-	//check if we are in privacy mode!, this is a to hard method to prevent from making pictures, because camera will freeze!	
-	if(!privacyMode){
-		initiate();
-	}
-	if(checkIfPackagesAllowed() == IS_NOT_ALLOWED){
-//		mShutterCallback = null;
-        	mRawImageCallback = null;
-		Log.i(PRIVACY_TAG,"blocked rawImageCallback -> it will never be called!");
-//        	mPostviewCallback = null;
-//        	mJpegCallback = null;
-//		dataAccess(false);
-	}
-//	else{
-//		dataAccess(true);
-//	}
-	//END PRIVACY
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //BEGIN PRIVACY
+		//check if we are in privacy mode!, this is a to hard method to prevent from making pictures, because camera will freeze!	
+		if(!privacyMode){
+			initiate();
+		}
+		if(checkIfPackagesAllowed() == IS_NOT_ALLOWED){
+	        mRawImageCallback = null;
+			PrivacyDebugger.i(PRIVACY_TAG,"blocked rawImageCallback -> it will never be called!");
+		}
+		//END PRIVACY
+	    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
         // If callback is not set, do not send me callbacks.
