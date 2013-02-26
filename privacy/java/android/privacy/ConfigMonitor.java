@@ -1,5 +1,6 @@
 package android.privacy;
 
+import java.io.FileNotFoundException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,7 +27,7 @@ import android.privacy.utilities.PrivacyDebugger;
  */
 final class ConfigMonitor {
 
-    private static final ConfigMonitor sInstance = new ConfigMonitor();
+    private static final ConfigMonitor sInstance = new ConfigMonitor(); // NOTE: Thread safety issue?
 	private static final String TAG = "ConfigMonitor";
 	private static final String DATABASE_FILE = PrivacyPersistenceAdapter.DATABASE_FILE;
 	private static final String DATABASE_JOURNAL_FILE = PrivacyPersistenceAdapter.DATABASE_JOURNAL_FILE;
@@ -90,9 +91,22 @@ final class ConfigMonitor {
 	 * TODO: Add exception handling
 	 */
 	private ConfigMonitor() {
-	    mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
-	    mFolderMonitor = new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
-	    mFolderMonitor = new Monitor(SETTINGS_DIRECTORY, ID_SETTINGS_MONITOR);
+	    PrivacyDebugger.i(TAG,"ConfigMonitor constructor triggered");
+	}
+	
+	private void startMonitors() {
+	    if (mDatabaseMonitor == null) {
+	        mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
+	        mDatabaseMonitor.startWatching();
+	    }
+	    if (mJournalMonitor == null) {
+	        mJournalMonitor= new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
+	        mDatabaseMonitor.startWatching();
+	    }
+	    if (mFolderMonitor == null) {
+	        mFolderMonitor = new Monitor(SETTINGS_DIRECTORY, ID_SETTINGS_MONITOR);
+	        mDatabaseMonitor.startWatching();
+	    }
 	}
 	
 	/**
@@ -100,7 +114,11 @@ final class ConfigMonitor {
 	 * list of callbacks, etc)
 	 * @return ConfigMonitor the ConfigMonitor singleton
 	 */
-	ConfigMonitor getConfigMonitor() {
+	static ConfigMonitor getConfigMonitor() {
+	    // Check that the monitors are all running correctly
+	    synchronized(sInstance) {
+	        sInstance.startMonitors();
+	    }
 	    return sInstance;
 	}
 	
@@ -149,7 +167,7 @@ final class ConfigMonitor {
 	    	}
 	    }
 	    //the monitored file or directory was deleted, monitoring effectively stops
-	    if ((FileObserver.DELETE_SELF & event) != 0) {
+	    if (((FileObserver.DELETE_SELF | FileObserver.DELETE) & event) != 0) {
 	        PrivacyDebugger.w(TAG, "Detected deletion: observerId is " + Integer.toString(observerId));
             switch (observerId) {
             case ID_DATABASE_MONITOR:
@@ -161,7 +179,7 @@ final class ConfigMonitor {
             }
 	    }
 	    //the monitored file or directory was moved; monitoring continues
-	    if ((FileObserver.MOVE_SELF & event) != 0) {
+	    if (((FileObserver.MOVE_SELF | FileObserver.MOVED_FROM) & event) != 0) {
 	        PrivacyDebugger.w(TAG, "Detected move: observerId is " + Integer.toString(observerId));
             switch (observerId) {
             case ID_DATABASE_MONITOR:
@@ -200,16 +218,18 @@ final class ConfigMonitor {
 	                    callback.onMonitorFinalize(authorizedWritesInProgress);
 	                } catch (Exception e) {}
 	            } 
-		        
 		    }
 		} catch(Exception e) {
 			PrivacyDebugger.e(TAG, "can't inform that WatchDog g finalized!", e);
 		}
-		try {
-			super.finalize();
-		} catch(Exception e) {
-			//nothing here
-		}
+        switch (observerId) {
+        case ID_DATABASE_MONITOR:
+            mDatabaseMonitor = null;
+        case ID_DATABASE_JOURNAL_MONITOR:
+            mJournalMonitor = null;
+        case ID_SETTINGS_MONITOR:
+            mFolderMonitor = null;
+        }
 	}
 	
 	/**

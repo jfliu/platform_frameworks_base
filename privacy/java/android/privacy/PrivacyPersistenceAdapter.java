@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -40,13 +41,21 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * Responsible for persisting privacy settings to built-in memory
  * 
- * @author Svyatoslav Hresyk {@hide}
+ * @author Svyatoslav Hresyk
+ * @author CollegeDev (Stefan T.)
+ * @author Simeon Morgan <smorgan@digitalfeed.net>
+ * {@hide}
  */
 public final class PrivacyPersistenceAdapter {
 
     private static final String TAG = "PrivacyPersistenceAdapter";
     private static final int RETRY_QUERY_COUNT = 5;
-    private static final String DATABASE_FILE = "/data/system/privacy.db";
+
+    // Used to save settings for access from core libraries
+    static final String SETTINGS_DIRECTORY = "/data/system/privacy";
+    static final String DATABASE_FILE = "/data/system/privacy.db";
+    static final String DATABASE_JOURNAL_FILE = "/data/system/privacy.db-journal";
+    
     private static final int DATABASE_VERSION = 4;
     private static final boolean LOG_LOCKING = true;
     private static final boolean LOG_OPEN_AND_CLOSE = true;
@@ -54,10 +63,9 @@ public final class PrivacyPersistenceAdapter {
     public static final int DUMMY_UID = -1;
 
     /**
-     * Number of threads currently reading the database Could probably be
-     * improved by using 'AtomicInteger'
+     * Number of threads currently reading the database
      */
-    public static volatile Integer sDbAccessThreads = 0;
+    public static volatile AtomicInteger sDbAccessThreads = new AtomicInteger();
     public static volatile int sDbVersion;
 
     /**
@@ -72,12 +80,8 @@ public final class PrivacyPersistenceAdapter {
     // internally inconsistent data reads.
     // Multiple locks could be used to improve efficiency (i.e. for different tables)
     private static ReadWriteLock sDbLock = new ReentrantReadWriteLock();
-
-    /**
-     * Used to save settings for access from core libraries
-     */
-    public static final String SETTINGS_DIRECTORY = "/data/system/privacy";
-
+    
+    private ConfigMonitor mConfigMonitor;
     
     // The default cache size is somewhat arbitrary at the moment
     // It may be valuable to run some analyses to check the average time between something being dropped from cache
@@ -91,7 +95,7 @@ public final class PrivacyPersistenceAdapter {
     private static final String TABLE_MAP = "map";
     private static final String TABLE_ALLOWED_CONTACTS = "allowed_contacts";
     private static final String TABLE_VERSION = "version";
-
+    
     private static final String CREATE_TABLE_SETTINGS = 
         "CREATE TABLE IF NOT EXISTS " + TABLE_SETTINGS + " ( " + 
         " _id INTEGER PRIMARY KEY AUTOINCREMENT, " + 
@@ -229,7 +233,8 @@ public final class PrivacyPersistenceAdapter {
     
     public PrivacyPersistenceAdapter(Context context) {
         this.mContext = context;
-
+        this.mConfigMonitor = ConfigMonitor.getConfigMonitor(); //what happens if the folders below don't exist?
+        
         // create the database and settings directory if we have write
         // permission and they do not exist
         if (new File("/data/system/").canWrite()) { 
@@ -250,8 +255,9 @@ public final class PrivacyPersistenceAdapter {
                     if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:constructor: WriteLock: (post)unlock");
                 }
             }
-
-
+            
+            this.mConfigMonitor = ConfigMonitor.getConfigMonitor(); // get again: starts any observers that are not already started (in case dirs were made above)
+            
             // upgrade if needed
             sDbVersion = getDbVersion();
             
@@ -274,9 +280,7 @@ public final class PrivacyPersistenceAdapter {
             case 2:
             case 3:
                 try {
-                    synchronized (sDbAccessThreads) {
-                        sDbAccessThreads++;
-                    }
+                    sDbAccessThreads.incrementAndGet();
                     if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:upgradeDatabase: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
 
                     db = getDatabase();
@@ -381,10 +385,8 @@ public final class PrivacyPersistenceAdapter {
         String output = null;
 
         try {
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:getValue: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:getValue: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
             if (db == null || !db.isOpen()) {
                 Log.e(TAG, "PrivacyPersistenceAdapter:getValue: Database not obtained while getting value for name: " + name);
@@ -429,10 +431,8 @@ public final class PrivacyPersistenceAdapter {
         SQLiteDatabase db;
 
         try {
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:setValue: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:setValue: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
             if (db == null || !db.isOpen()) {
                 Log.e(TAG, "PrivacyPersistenceAdapter:setValue: Database not obtained while setting value for name: " + name);
@@ -494,10 +494,8 @@ public final class PrivacyPersistenceAdapter {
         SQLiteDatabase db;
         try {
             // indicate that the DB is being read to prevent closing by other threads
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:getSettings: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:getSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
         } catch (SQLiteException e) {
             Log.e(TAG, "getSettings - database could not be opened", e);
@@ -667,10 +665,8 @@ public final class PrivacyPersistenceAdapter {
         Cursor cursor = null;
 
         try {
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
 
             if (db != null && db.isOpen()) {
@@ -875,10 +871,8 @@ public final class PrivacyPersistenceAdapter {
 
         SQLiteDatabase db = null;
         try {
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
 
             if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: WriteLock: (pre)lock");
@@ -1024,10 +1018,8 @@ public final class PrivacyPersistenceAdapter {
         SQLiteDatabase db = null;
 
         try {
-            synchronized (sDbAccessThreads) {
-                sDbAccessThreads++;
-            }
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+            sDbAccessThreads.incrementAndGet();
+            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             
             // delete obsolete entries from DB and update outdated entries
             db = getDatabase();
@@ -1141,17 +1133,15 @@ public final class PrivacyPersistenceAdapter {
      * reduce the number of reading threads by one
      */
     private void closeIdleDatabase() {
-        synchronized (sDbAccessThreads) {
-            sDbAccessThreads--;
-            if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: Decrement DB access threads: now " + Integer.toString(sDbAccessThreads));
-            // only close DB if no other threads are reading
-            if (sDbAccessThreads == 0 && mDb != null && mDb.isOpen()) {
-                if (autoCloseDb) { 
-                    if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: Closing the PDroid database");
-                    mDb.close();
-                } else {
-                    if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: Open and close DB disabled: not closing");
-                }
+            
+        if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: About to decrement DB access threads: now " + sDbAccessThreads.toString());
+        // only close DB if no other threads are reading
+        if (sDbAccessThreads.decrementAndGet() == 0 && mDb != null && mDb.isOpen()) {
+            if (autoCloseDb) { 
+                if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: Closing the PDroid database");
+                mDb.close();
+            } else {
+                if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:closeIdleDatabase: Open and close DB disabled: not closing");
             }
         }
     }

@@ -17,7 +17,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.RemoteException;
-import android.util.Log;
+import android.privacy.utilities.PrivacyDebugger;
 
 import java.io.File;
 import java.util.HashMap;
@@ -43,6 +43,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     private Context context;
 
     public static PrivacyFileObserver obs;
+    private ConfigMonitor mConfigMonitor;
 
     private boolean enabled;
     private boolean notificationsEnabled;
@@ -60,7 +61,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
      * @param context
      */
     public PrivacySettingsManagerService(Context context) {
-        Log.i(TAG,
+        PrivacyDebugger.i(TAG,
                 "PrivacySettingsManagerService - initializing for package: "
                         + context.getPackageName() + " UID: " + Binder.getCallingUid());
         this.context = context;
@@ -74,10 +75,13 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
                 PrivacyPersistenceAdapter.SETTING_NOTIFICATIONS_ENABLED).equals(
                 PrivacyPersistenceAdapter.VALUE_TRUE);
         bootCompleted = false;
+        mConfigMonitor = ConfigMonitor.getConfigMonitor();
+        mConfigMonitorCallback = new ConfigMonitorCallbackHandler();
+        mConfigMonitor.addCallbackListener()
     }
 
     public PrivacySettings getSettings(String packageName) {
-        // Log.d(TAG, "getSettings - " + packageName);
+        // PrivacyDebugger.d(TAG, "getSettings - " + packageName);
         if (enabled || context.getPackageName().equals("com.privacy.pdroid")
                 || context.getPackageName().equals("com.privacy.pdroid.Addon")
                 || context.getPackageName().equals("com.android.privacy.pdroid.extension"))
@@ -88,14 +92,14 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     }
 
     public boolean saveSettings(PrivacySettings settings) throws RemoteException {
-        Log.d(TAG, "saveSettings - checking if caller (UID: " + Binder.getCallingUid()
+        PrivacyDebugger.d(TAG, "saveSettings - checking if caller (UID: " + Binder.getCallingUid()
                 + ") has sufficient permissions");
         // Why are we letting the system delete package settings??
         if (Binder.getCallingUid() != 1000) {
             checkCallerCanWriteOrThrow();
         }
         
-        Log.d(TAG, "saveSettings - " + settings);
+        PrivacyDebugger.d(TAG, "saveSettings - " + settings);
         boolean result = persistenceAdapter.saveSettings(settings);
         if (result == true)
             obs.addObserver(settings.getPackageName());
@@ -151,9 +155,9 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         try {
             StackTraceElement[] elements = new Throwable().getStackTrace();
             String callerClassName = elements[1].getClassName();
-            Log.d(TAG, "PrivacySettingsManagerService:setBootCompleted: called by " + callerClassName);
+            PrivacyDebugger.d(TAG, "PrivacySettingsManagerService:setBootCompleted: called by " + callerClassName);
         } catch (Exception e) {
-            Log.d(TAG, "PrivacySettingsManagerService:setBootCompleted: Exception while obtaining caller class name");
+            PrivacyDebugger.d(TAG, "PrivacySettingsManagerService:setBootCompleted: Exception while obtaining caller class name");
         }
         bootCompleted = true;
     }
@@ -306,5 +310,21 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         debugFlags.put(DEBUG_FLAG_SEND_NOTIFICATIONS, DEBUG_FLAG_TYPE_BOOLEAN);
         debugFlags.put(DEBUG_FLAG_USE_CACHE, DEBUG_FLAG_TYPE_BOOLEAN);
         return debugFlags;
+    }
+    
+    class ConfigMonitorCallbackHandler implements ConfigMonitor.ConfigMonitorCallback {
+
+        @Override
+        public void onUnauthorizedChange(int MSG_WHAT) {
+            // TODO Auto-generated method stub
+            
+        }
+
+        @Override
+        public void onMonitorFinalize(int authorizedWritesInProgress) {
+            // TODO Auto-generated method stub
+            
+        }
+        
     }
 }
