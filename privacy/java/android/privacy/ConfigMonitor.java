@@ -24,12 +24,26 @@ import android.privacy.utilities.PrivacyDebugger;
  * @author Simeon Morgan <smorgan@digitalfeed.net>
  * Monitors the PDroid-related database and files for unauthorised changes
  */
-final class ConfigMonitor extends FileObserver {
+final class ConfigMonitor {
 
-    private static final ConfigMonitor instance = new ConfigMonitor();
+    private static final ConfigMonitor sInstance = new ConfigMonitor();
 	private static final String TAG = "ConfigMonitor";
-	private static final String WATCH_PATH = PrivacyPersistenceAdapter.DATABASE_FILE;
-	private final Set<ConfigMonitorCallback> callbacks;
+	private static final String DATABASE_FILE = PrivacyPersistenceAdapter.DATABASE_FILE;
+	private static final String DATABASE_JOURNAL_FILE = PrivacyPersistenceAdapter.DATABASE_JOURNAL_FILE;
+	private static final String SETTINGS_DIRECTORY = PrivacyPersistenceAdapter.SETTINGS_DIRECTORY;
+	
+	private static final int ID_DATABASE_MONITOR = 0;
+	private static final int ID_DATABASE_JOURNAL_MONITOR = 1;
+	private static final int ID_SETTINGS_MONITOR = 2;
+	
+	private final Set<ConfigMonitorCallback> mCallbacks;
+	
+	/**
+	 * Individual file observer objects: monitor database, journal, and additional configuration folder
+	 */
+	private FileObserver mDatabaseMonitor;
+	private FileObserver mJournalMonitor;
+	private FileObserver mFolderMonitor;
 	
 	// Used to track number of current authorized writing programs (rather
 	// than just a true-false 'changesInProgress' flag to avoid one PrivacyPersistenceAdapter
@@ -55,25 +69,30 @@ final class ConfigMonitor extends FileObserver {
 
 
     /**
-     * MSG will be attached in callBack if someone changed the database
+     * Messages for the activities which can be detected
      */
-    public static final int MSG_DATABASE_MODIFY = 1;
-    /**
-     * MSG will be attached in CallBack if someone deleted the database
-     */
+    public static final int MSG_DATABASE_MODIFIED = 1;
     public static final int MSG_DATABASE_DELETED = 2;
-    /**
-     * MSG will be attached in CallBack if someone moved the database
-     */
     public static final int MSG_DATABASE_MOVED = 3;
+
+    public static final int MSG_DATABASE_JOURNAL_MODIFIED = 4;
+    public static final int MSG_DATABASE_JOURNAL_DELETED = 5;
+    public static final int MSG_DATABASE_JOURNAL_MOVED = 6;
+    
+    public static final int MSG_SETTINGS_MODIFIED = 7;
+    public static final int MSG_SETTINGS_DELETED = 8;
+    public static final int MSG_SETTINGS_MOVED = 9;
     
 	
 	/**
 	 * Using a singleton, so the constructor should only execute once (when
 	 * the singleton is created)
+	 * TODO: Add exception handling
 	 */
 	private ConfigMonitor() {
-	    super(WATCH_PATH);
+	    mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
+	    mFolderMonitor = new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
+	    mFolderMonitor = new Monitor(SETTINGS_DIRECTORY, ID_SETTINGS_MONITOR);
 	}
 	
 	/**
@@ -82,7 +101,7 @@ final class ConfigMonitor extends FileObserver {
 	 * @return ConfigMonitor the ConfigMonitor singleton
 	 */
 	ConfigMonitor getConfigMonitor() {
-	    return instance;
+	    return sInstance;
 	}
 	
 	/**
@@ -91,11 +110,10 @@ final class ConfigMonitor extends FileObserver {
 	 * @param iface object to do callbacks against
 	 */
 	void addCallbackListener(ConfigMonitorCallback iface) {
-	    synchronized (callbacks) {
-    	    callbacks.add(iface);
+	    synchronized (mCallbacks) {
+    	    mCallbacks.add(iface);
             PrivacyDebugger.i(TAG,"Added callback listener to watchdog");
-    	    if (callbacks.size() == 1) {
-        		this.startWatching();
+    	    if (mCallbacks.size() == 1) {
         		PrivacyDebugger.i(TAG,"Commenced listening for config changes");
     	    }
 	    }
@@ -106,34 +124,53 @@ final class ConfigMonitor extends FileObserver {
 	 * @param iface
 	 */
 	void removeCallbackListener(ConfigMonitorCallback iface) {
-	    synchronized (callbacks) {
-	        callbacks.remove(iface);
+	    synchronized (mCallbacks) {
+	        mCallbacks.remove(iface);
 	    }
 	}
 	
 	
-	@Override
-	public void onEvent(int event, String path) {
-
+	public void handleEvent(int observerId, int event, String path) {
 	    //data was written to a file
 	    if ((FileObserver.MODIFY & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database modified");
+	        PrivacyDebugger.w(TAG, "Detected change: observerId is " + Integer.toString(observerId));
 	    	if(authorizedWritesInProgress <= 0) {
 	    		PrivacyDebugger.w(TAG, "inform adapter about modified database");
-	    		doChangeCallbacks(MSG_DATABASE_MODIFY);
+	    		switch (observerId) {
+	    		case ID_DATABASE_MONITOR:
+	    		    doChangeCallbacks(MSG_DATABASE_MODIFIED);
+	    		case ID_DATABASE_JOURNAL_MONITOR:
+	    		    doChangeCallbacks(MSG_DATABASE_JOURNAL_MODIFIED);
+	    		case ID_SETTINGS_MONITOR:
+                    doChangeCallbacks(MSG_SETTINGS_MODIFIED);
+	    		}
 	    	} else {
 	    		PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
 	    	}
 	    }
 	    //the monitored file or directory was deleted, monitoring effectively stops
 	    if ((FileObserver.DELETE_SELF & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database deleted");
-	    	doChangeCallbacks(MSG_DATABASE_DELETED);
+	        PrivacyDebugger.w(TAG, "Detected deletion: observerId is " + Integer.toString(observerId));
+            switch (observerId) {
+            case ID_DATABASE_MONITOR:
+                doChangeCallbacks(MSG_DATABASE_DELETED);
+            case ID_DATABASE_JOURNAL_MONITOR:
+                doChangeCallbacks(MSG_DATABASE_JOURNAL_DELETED);
+            case ID_SETTINGS_MONITOR:
+                doChangeCallbacks(MSG_SETTINGS_DELETED);
+            }
 	    }
 	    //the monitored file or directory was moved; monitoring continues
 	    if ((FileObserver.MOVE_SELF & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database moved");
-	    	doChangeCallbacks(MSG_DATABASE_MOVED);
+	        PrivacyDebugger.w(TAG, "Detected move: observerId is " + Integer.toString(observerId));
+            switch (observerId) {
+            case ID_DATABASE_MONITOR:
+                doChangeCallbacks(MSG_DATABASE_MOVED);
+            case ID_DATABASE_JOURNAL_MONITOR:
+                doChangeCallbacks(MSG_DATABASE_JOURNAL_MOVED);
+            case ID_SETTINGS_MONITOR:
+                doChangeCallbacks(MSG_SETTINGS_MOVED);
+            }
 	    }
 	}
 	
@@ -144,8 +181,8 @@ final class ConfigMonitor extends FileObserver {
 	 * @param callbackMessage identifier for the message to be passed
 	 */
 	private void doChangeCallbacks(int callbackMessage) {
-	    synchronized(callbacks) {
-            for (ConfigMonitorCallback callback : callbacks) {
+	    synchronized(mCallbacks) {
+            for (ConfigMonitorCallback callback : mCallbacks) {
                 try {
                     callback.onUnauthorizedChange(callbackMessage);
                 } catch (Exception e) {}
@@ -154,12 +191,11 @@ final class ConfigMonitor extends FileObserver {
 	}
 	
 	
-	@Override
-	public void finalize () {
+	public void handleFinalize(int observerId) {
 		// shit-> inform service about that :-/
 		try {
-		    synchronized(callbacks) {
-	            for (ConfigMonitorCallback callback : callbacks) {
+		    synchronized(mCallbacks) {
+	            for (ConfigMonitorCallback callback : mCallbacks) {
 	                try {
 	                    callback.onMonitorFinalize(authorizedWritesInProgress);
 	                } catch (Exception e) {}
@@ -197,15 +233,48 @@ final class ConfigMonitor extends FileObserver {
 	 */
 	public String msgToString (int msg) {
 		switch(msg) {
-			case MSG_DATABASE_MODIFY:
+			case MSG_DATABASE_MODIFIED:
 				return "database modified";
 			case MSG_DATABASE_DELETED:
 				return "database deleted";
 			case MSG_DATABASE_MOVED:
 				return "database moved";
+            case MSG_DATABASE_JOURNAL_MODIFIED:
+                return "database journal modified";
+            case MSG_DATABASE_JOURNAL_DELETED:
+                return "database journal deleted";
+            case MSG_DATABASE_JOURNAL_MOVED:
+                return "database journal moved";
+            case MSG_SETTINGS_MODIFIED:
+                return "settings folder/files modified";
+            case MSG_SETTINGS_DELETED:
+                return "settings folder/files deleted";
+            case MSG_SETTINGS_MOVED:
+                return "settings folder/files moved";
 			default:
 				return "UNKNOWN";
 		}
+	}
+	
+	private class Monitor extends FileObserver {
+	    private int observerId;
+	    
+        public Monitor(String path, int observerId) {
+            super(path);
+            this.observerId = observerId;
+        }
+        
+        @Override
+        public void onEvent(int event, String path) {
+            handleEvent(observerId, event, path);
+        }
+        
+        @Override
+        public void finalize () {
+            handleFinalize(observerId);
+            super.finalize();
+        }
+	    
 	}
 	
 	/**
