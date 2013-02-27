@@ -37,17 +37,18 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     private static final String WRITE_PRIVACY_SETTINGS = "android.privacy.WRITE_PRIVACY_SETTINGS";
     private static final String READ_PRIVACY_SETTINGS = "android.privacy.READ_PRIVACY_SETTINGS";
 
-    private static boolean sendNotifications = true; 
-    private PrivacyPersistenceAdapter persistenceAdapter;
+    private static boolean mSendNotifications = true; 
+    private PrivacyPersistenceAdapter mPersistenceAdapter;
     
-    private Context context;
+    private Context mContext;
 
-    public static PrivacyFileObserver obs;
+    public static PrivacyFileObserver sObserver;
     private ConfigMonitor mConfigMonitor;
+    //private ConfigMonitorCallbackHandler mConfigMonitorCallback = new ConfigMonitorCallbackHandler(); // NOTE: threading?
 
-    private boolean enabled;
-    private boolean notificationsEnabled;
-    private boolean bootCompleted;
+    private boolean mEnabled;
+    private boolean mNotificationsEnabled;
+    private boolean mBootCompleted;
 
     static final double API_VERSION = 1.51;
     static final double MOD_VERSION = 1.0;
@@ -61,32 +62,36 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
      * @param context
      */
     public PrivacySettingsManagerService(Context context) {
+        super();
         PrivacyDebugger.i(TAG,
                 "PrivacySettingsManagerService - initializing for package: "
                         + context.getPackageName() + " UID: " + Binder.getCallingUid());
-        this.context = context;
+        this.mContext = context;
 
-        persistenceAdapter = new PrivacyPersistenceAdapter(context);
-        obs = new PrivacyFileObserver("/data/system/privacy", this);
+        mPersistenceAdapter = new PrivacyPersistenceAdapter(context);
+        sObserver = new PrivacyFileObserver("/data/system/privacy", this);
 
-        enabled = persistenceAdapter.getValue(PrivacyPersistenceAdapter.SETTING_ENABLED).equals(
+        mEnabled = mPersistenceAdapter.getValue(PrivacyPersistenceAdapter.SETTING_ENABLED).equals(
                 PrivacyPersistenceAdapter.VALUE_TRUE);
-        notificationsEnabled = persistenceAdapter.getValue(
+        mNotificationsEnabled = mPersistenceAdapter.getValue(
                 PrivacyPersistenceAdapter.SETTING_NOTIFICATIONS_ENABLED).equals(
                 PrivacyPersistenceAdapter.VALUE_TRUE);
-        bootCompleted = false;
-        mConfigMonitor = ConfigMonitor.getConfigMonitor();
-        mConfigMonitorCallback = new ConfigMonitorCallbackHandler();
-        mConfigMonitor.addCallbackListener()
+        mBootCompleted = false;
+        this.mConfigMonitor = ConfigMonitor.getConfigMonitor();
+        synchronized (this.mConfigMonitor) {
+            if (this.mConfigMonitor.getCallbackListener() == null) {
+                this.mConfigMonitor.setCallbackListener(new ConfigMonitorCallbackHandler());
+            }
+        }
     }
 
     public PrivacySettings getSettings(String packageName) {
         // PrivacyDebugger.d(TAG, "getSettings - " + packageName);
-        if (enabled || context.getPackageName().equals("com.privacy.pdroid")
-                || context.getPackageName().equals("com.privacy.pdroid.Addon")
-                || context.getPackageName().equals("com.android.privacy.pdroid.extension"))
+        if (mEnabled || mContext.getPackageName().equals("com.privacy.pdroid")
+                || mContext.getPackageName().equals("com.privacy.pdroid.Addon")
+                || mContext.getPackageName().equals("com.android.privacy.pdroid.extension"))
             // we have to add our addon package here, to get real settings
-            return persistenceAdapter.getSettings(packageName);
+            return mPersistenceAdapter.getSettings(packageName);
         else
             return null;
     }
@@ -100,9 +105,9 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         }
         
         PrivacyDebugger.d(TAG, "saveSettings - " + settings);
-        boolean result = persistenceAdapter.saveSettings(settings);
+        boolean result = mPersistenceAdapter.saveSettings(settings);
         if (result == true)
-            obs.addObserver(settings.getPackageName());
+            sObserver.addObserver(settings.getPackageName());
         return result;
     }
 
@@ -112,20 +117,20 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
             checkCallerCanWriteOrThrow();
         }
 
-        boolean result = persistenceAdapter.deleteSettings(packageName);
+        boolean result = mPersistenceAdapter.deleteSettings(packageName);
         // update observer if directory exists
         String observePath = PrivacyPersistenceAdapter.SETTINGS_DIRECTORY + "/" + packageName;
         if (new File(observePath).exists() && result == true) {
-            obs.addObserver(observePath);
+            sObserver.addObserver(observePath);
         } else if (result == true) {
-            obs.children.remove(observePath);
+            sObserver.children.remove(observePath);
         }
         return result;
     }
     
     public void notification(final String packageName, final byte accessMode,
             final String dataType, final String output) {
-        if (bootCompleted && notificationsEnabled && sendNotifications) {
+        if (mBootCompleted && mNotificationsEnabled && mSendNotifications) {
             Intent intent = new Intent();
             intent.setAction(PrivacySettingsManager.ACTION_PRIVACY_NOTIFICATION);
             intent.putExtra("packageName", packageName);
@@ -133,22 +138,22 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
             intent.putExtra("accessMode", accessMode);
             intent.putExtra("dataType", dataType);
             intent.putExtra("output", output);
-            context.sendBroadcast(intent);
+            mContext.sendBroadcast(intent);
         }
     }
 
     public void registerObservers() throws RemoteException {
         checkCallerCanWriteOrThrow();
-        obs = new PrivacyFileObserver("/data/system/privacy", this);
+        sObserver = new PrivacyFileObserver("/data/system/privacy", this);
     }
 
     public void addObserver(String packageName) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        obs.addObserver(packageName);
+        sObserver.addObserver(packageName);
     }
 
     public boolean purgeSettings() {
-        return persistenceAdapter.purgeSettings();
+        return mPersistenceAdapter.purgeSettings();
     }
 
     public void setBootCompleted() {
@@ -159,17 +164,17 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         } catch (Exception e) {
             PrivacyDebugger.d(TAG, "PrivacySettingsManagerService:setBootCompleted: Exception while obtaining caller class name");
         }
-        bootCompleted = true;
+        mBootCompleted = true;
     }
 
     public boolean setNotificationsEnabled(boolean enable) throws RemoteException {
         checkCallerCanWriteOrThrow();
         String value = enable ? PrivacyPersistenceAdapter.VALUE_TRUE
                 : PrivacyPersistenceAdapter.VALUE_FALSE;
-        if (persistenceAdapter.setValue(PrivacyPersistenceAdapter.SETTING_NOTIFICATIONS_ENABLED,
+        if (mPersistenceAdapter.setValue(PrivacyPersistenceAdapter.SETTING_NOTIFICATIONS_ENABLED,
                 value)) {
-            this.notificationsEnabled = true;
-            this.bootCompleted = true;
+            this.mNotificationsEnabled = true;
+            this.mBootCompleted = true;
             return true;
         } else {
             return false;
@@ -187,8 +192,8 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         checkCallerCanWriteOrThrow();
         String value = newIsEnabled ? PrivacyPersistenceAdapter.VALUE_TRUE
                 : PrivacyPersistenceAdapter.VALUE_FALSE;
-        if (persistenceAdapter.setValue(PrivacyPersistenceAdapter.SETTING_ENABLED, value)) {
-            this.enabled = true;
+        if (mPersistenceAdapter.setValue(PrivacyPersistenceAdapter.SETTING_ENABLED, value)) {
+            this.mEnabled = true;
             return true;
         } else {
             return false;
@@ -200,7 +205,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
 	 * Throw an exception if not. 
 	 */
 	private void checkCallerCanWriteOrThrow() throws RemoteException {
-		context.enforceCallingPermission(WRITE_PRIVACY_SETTINGS,
+		mContext.enforceCallingPermission(WRITE_PRIVACY_SETTINGS,
 				"Requires WRITE_PRIVACY_SETTINGS");
 		//for future:
 		// if not allowed then throw
@@ -229,7 +234,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
 		if (Binder.getCallingUid() == 1000) {
 			return;
 		}
-		context.enforceCallingPermission(READ_PRIVACY_SETTINGS,
+		mContext.enforceCallingPermission(READ_PRIVACY_SETTINGS,
 				"Requires READ_PRIVACY_SETTINGS");
 		//for future:
 		// if not allowed then throw
@@ -262,7 +267,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     public void setDebugFlagInt(String flagName, int value) throws RemoteException {
         checkCallerCanWriteOrThrow();
         if (flagName.equals(DEBUG_FLAG_CACHE_SIZE)) {
-            this.persistenceAdapter.setCacheSize(value);
+            this.mPersistenceAdapter.setCacheSize(value);
         } else {
             throw new RemoteException();
         }
@@ -271,7 +276,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     public int getDebugFlagInt(String flagName) throws RemoteException {
         checkCallerCanWriteOrThrow();
         if (flagName.equals(DEBUG_FLAG_CACHE_SIZE)) {
-            return this.persistenceAdapter.getCacheSize();
+            return this.mPersistenceAdapter.getCacheSize();
         } else {
             throw new RemoteException();
         }
@@ -280,11 +285,11 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     public void setDebugFlagBool(String flagName, boolean value) throws RemoteException {
         checkCallerCanWriteOrThrow();
         if (flagName.equals(DEBUG_FLAG_USE_CACHE)) {
-            this.persistenceAdapter.setUseCache(value);
+            this.mPersistenceAdapter.setUseCache(value);
         } else if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
-            this.persistenceAdapter.setOpenAndCloseDb(value);
+            this.mPersistenceAdapter.setOpenAndCloseDb(value);
         } else if (flagName.equals(DEBUG_FLAG_SEND_NOTIFICATIONS)) {
-            this.sendNotifications = value;
+            this.mSendNotifications = value;
         } else {
             throw new RemoteException();
         }
@@ -293,11 +298,11 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     public boolean getDebugFlagBool(String flagName) throws RemoteException {
         checkCallerCanWriteOrThrow();
         if (flagName.equals(DEBUG_FLAG_USE_CACHE)) {
-            return this.persistenceAdapter.getUseCache();
+            return this.mPersistenceAdapter.getUseCache();
         } else if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
-            return this.persistenceAdapter.getOpenAndCloseDb();
+            return this.mPersistenceAdapter.getOpenAndCloseDb();
         } else if (flagName.equals(DEBUG_FLAG_SEND_NOTIFICATIONS)) {
-            return this.sendNotifications;
+            return this.mSendNotifications;
         } else {
             throw new RemoteException();
         }
@@ -316,6 +321,8 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
 
         @Override
         public void onUnauthorizedChange(int MSG_WHAT) {
+            PrivacyDebugger.i(TAG,
+                    "Config monitor: unauthorized change");
             // TODO Auto-generated method stub
             
         }
@@ -323,7 +330,8 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         @Override
         public void onMonitorFinalize(int authorizedWritesInProgress) {
             // TODO Auto-generated method stub
-            
+            PrivacyDebugger.i(TAG,
+                    "Config monitor: finalize");
         }
         
     }

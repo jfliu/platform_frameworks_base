@@ -559,12 +559,12 @@ class ContextImpl extends Context {
                 }});
 
         // BEGIN privacy-added
-        registerService("privacy", new StaticServiceFetcher() {
-                public Object createStaticService() {
+        registerService("privacy", new ServiceFetcher() {
+                public Object createService(ContextImpl ctx) {
                     Log.d(TAG, "Privacy:ContextImpl: Creating static privacy service");
                     IBinder b = ServiceManager.getService("privacy");
                     IPrivacySettingsManager service = IPrivacySettingsManager.Stub.asInterface(b);
-                    return new PrivacySettingsManager(getStaticOuterContext(), service);
+                    return new PrivacySettingsManager(ctx, service);
                 }});
         // END privacy-added
 

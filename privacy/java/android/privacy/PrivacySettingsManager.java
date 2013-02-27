@@ -33,7 +33,7 @@ import android.privacy.utilities.PrivacyDebugger;
 public final class PrivacySettingsManager {
 
     private static final String TAG = "PrivacySettingsManager";
-    // SM: to delete: public static final String ACTION_PRIVACY_NOTIFICATION = "com.privacy.pdroid.PRIVACY_NOTIFICATION";
+    public static final String ACTION_PRIVACY_NOTIFICATION = "com.privacy.pdroid.PRIVACY_NOTIFICATION";
     // SM: to delete: public static final String ACTION_PRIVACY_NOTIFICATION_ADDON = "com.privacy.pdroid.PRIVACY_NOTIFICATION_ADDON";
     // SM: to delete: private static final String SERVICE_CLASS = "android.privacy.IPrivacySettingsManager.Stub.Proxy";
 

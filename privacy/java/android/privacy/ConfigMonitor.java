@@ -27,7 +27,7 @@ import android.privacy.utilities.PrivacyDebugger;
  */
 final class ConfigMonitor {
 
-    private static final ConfigMonitor sInstance = new ConfigMonitor(); // NOTE: Thread safety issue?
+    private static ConfigMonitor sInstance;
 	private static final String TAG = "ConfigMonitor";
 	private static final String DATABASE_FILE = PrivacyPersistenceAdapter.DATABASE_FILE;
 	private static final String DATABASE_JOURNAL_FILE = PrivacyPersistenceAdapter.DATABASE_JOURNAL_FILE;
@@ -37,7 +37,7 @@ final class ConfigMonitor {
 	private static final int ID_DATABASE_JOURNAL_MONITOR = 1;
 	private static final int ID_SETTINGS_MONITOR = 2;
 	
-	private final Set<ConfigMonitorCallback> mCallbacks;
+	private ConfigMonitorCallback mCallback;
 	
 	/**
 	 * Individual file observer objects: monitor database, journal, and additional configuration folder
@@ -95,12 +95,13 @@ final class ConfigMonitor {
 	}
 	
 	private void startMonitors() {
+	    PrivacyDebugger.i(TAG,"Starting monitors");
 	    if (mDatabaseMonitor == null) {
 	        mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
 	        mDatabaseMonitor.startWatching();
 	    }
 	    if (mJournalMonitor == null) {
-	        mJournalMonitor= new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
+	        mJournalMonitor = new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
 	        mDatabaseMonitor.startWatching();
 	    }
 	    if (mFolderMonitor == null) {
@@ -109,15 +110,32 @@ final class ConfigMonitor {
 	    }
 	}
 	
+	private void stopMonitors() {
+	    PrivacyDebugger.i(TAG,"Stopping monitors");
+        if (mDatabaseMonitor != null) {
+            mDatabaseMonitor.stopWatching();
+            mDatabaseMonitor = null;
+        }
+        if (mJournalMonitor != null) {
+            mDatabaseMonitor.stopWatching();
+            mJournalMonitor = null;
+        }
+        if (mFolderMonitor == null) {
+            mDatabaseMonitor.stopWatching();
+            mFolderMonitor = null;
+        }
+	}
+	
 	/**
 	 * Singleton retriever function to get the config monitor object (which then allows adding to the
 	 * list of callbacks, etc)
 	 * @return ConfigMonitor the ConfigMonitor singleton
 	 */
-	static ConfigMonitor getConfigMonitor() {
+	synchronized static ConfigMonitor getConfigMonitor() {
+	    PrivacyDebugger.i(TAG,"getConfigMonitor");
 	    // Check that the monitors are all running correctly
-	    synchronized(sInstance) {
-	        sInstance.startMonitors();
+	    if (sInstance == null) {
+	        sInstance = new ConfigMonitor();
 	    }
 	    return sInstance;
 	}
@@ -127,26 +145,23 @@ final class ConfigMonitor {
 	 * are modified without authorization
 	 * @param iface object to do callbacks against
 	 */
-	void addCallbackListener(ConfigMonitorCallback iface) {
-	    synchronized (mCallbacks) {
-    	    mCallbacks.add(iface);
-            PrivacyDebugger.i(TAG,"Added callback listener to watchdog");
-    	    if (mCallbacks.size() == 1) {
-        		PrivacyDebugger.i(TAG,"Commenced listening for config changes");
-    	    }
+	void setCallbackListener(ConfigMonitorCallback iface) {
+	    synchronized(sInstance) {
+	        if (iface != null) {
+	            this.startMonitors();
+	        } else {
+	            this.stopMonitors();
+	        }
+	        mCallback = iface;
 	    }
+	    PrivacyDebugger.i(TAG,"Set callback listener on ConfigMonitor");
 	}
 
-	/**
-	 * Removes a single callback listener from the list of callbacks
-	 * @param iface
-	 */
-	void removeCallbackListener(ConfigMonitorCallback iface) {
-	    synchronized (mCallbacks) {
-	        mCallbacks.remove(iface);
+	ConfigMonitorCallback getCallbackListener() {
+	    synchronized(sInstance) {
+	        return mCallback;
 	    }
 	}
-	
 	
 	public void handleEvent(int observerId, int event, String path) {
 	    //data was written to a file
@@ -156,11 +171,11 @@ final class ConfigMonitor {
 	    		PrivacyDebugger.w(TAG, "inform adapter about modified database");
 	    		switch (observerId) {
 	    		case ID_DATABASE_MONITOR:
-	    		    doChangeCallbacks(MSG_DATABASE_MODIFIED);
+	    		    doChangeCallback(MSG_DATABASE_MODIFIED);
 	    		case ID_DATABASE_JOURNAL_MONITOR:
-	    		    doChangeCallbacks(MSG_DATABASE_JOURNAL_MODIFIED);
+	    		    doChangeCallback(MSG_DATABASE_JOURNAL_MODIFIED);
 	    		case ID_SETTINGS_MONITOR:
-                    doChangeCallbacks(MSG_SETTINGS_MODIFIED);
+                    doChangeCallback(MSG_SETTINGS_MODIFIED);
 	    		}
 	    	} else {
 	    		PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
@@ -171,11 +186,11 @@ final class ConfigMonitor {
 	        PrivacyDebugger.w(TAG, "Detected deletion: observerId is " + Integer.toString(observerId));
             switch (observerId) {
             case ID_DATABASE_MONITOR:
-                doChangeCallbacks(MSG_DATABASE_DELETED);
+                doChangeCallback(MSG_DATABASE_DELETED);
             case ID_DATABASE_JOURNAL_MONITOR:
-                doChangeCallbacks(MSG_DATABASE_JOURNAL_DELETED);
+                doChangeCallback(MSG_DATABASE_JOURNAL_DELETED);
             case ID_SETTINGS_MONITOR:
-                doChangeCallbacks(MSG_SETTINGS_DELETED);
+                doChangeCallback(MSG_SETTINGS_DELETED);
             }
 	    }
 	    //the monitored file or directory was moved; monitoring continues
@@ -183,11 +198,11 @@ final class ConfigMonitor {
 	        PrivacyDebugger.w(TAG, "Detected move: observerId is " + Integer.toString(observerId));
             switch (observerId) {
             case ID_DATABASE_MONITOR:
-                doChangeCallbacks(MSG_DATABASE_MOVED);
+                doChangeCallback(MSG_DATABASE_MOVED);
             case ID_DATABASE_JOURNAL_MONITOR:
-                doChangeCallbacks(MSG_DATABASE_JOURNAL_MOVED);
+                doChangeCallback(MSG_DATABASE_JOURNAL_MOVED);
             case ID_SETTINGS_MONITOR:
-                doChangeCallbacks(MSG_SETTINGS_MOVED);
+                doChangeCallback(MSG_SETTINGS_MOVED);
             }
 	    }
 	}
@@ -198,27 +213,15 @@ final class ConfigMonitor {
 	 * TODO: does this need to be synchronized? probably.
 	 * @param callbackMessage identifier for the message to be passed
 	 */
-	private void doChangeCallbacks(int callbackMessage) {
-	    synchronized(mCallbacks) {
-            for (ConfigMonitorCallback callback : mCallbacks) {
-                try {
-                    callback.onUnauthorizedChange(callbackMessage);
-                } catch (Exception e) {}
-            }
-	    }
+	private void doChangeCallback(int callbackMessage) {
+	    mCallback.onUnauthorizedChange(callbackMessage);
 	}
 	
 	
 	public void handleFinalize(int observerId) {
 		// shit-> inform service about that :-/
 		try {
-		    synchronized(mCallbacks) {
-	            for (ConfigMonitorCallback callback : mCallbacks) {
-	                try {
-	                    callback.onMonitorFinalize(authorizedWritesInProgress);
-	                } catch (Exception e) {}
-	            } 
-		    }
+		    mCallback.onMonitorFinalize(authorizedWritesInProgress);
 		} catch(Exception e) {
 			PrivacyDebugger.e(TAG, "can't inform that WatchDog g finalized!", e);
 		}
@@ -236,6 +239,7 @@ final class ConfigMonitor {
 	 * Call this method at the beginning of authorized database accesses
 	 */
 	synchronized void beginAuthorizedTransaction() {
+	    PrivacyDebugger.i(TAG,"beginAuthorizedTransaction");
 	    authorizedWritesInProgress++;
 	}
 	
@@ -243,6 +247,7 @@ final class ConfigMonitor {
 	 * Call this method at the end of authorized database accesses
 	 */
 	synchronized void endAuthorizedTransaction() {
+	    PrivacyDebugger.i(TAG,"endAuthorizedTransaction");
 	    authorizedWritesInProgress--;
 	}
 	

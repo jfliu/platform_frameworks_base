@@ -280,8 +280,9 @@ public final class PrivacyPersistenceAdapter {
             case 2:
             case 3:
                 try {
+                    this.mConfigMonitor.beginAuthorizedTransaction();
                     sDbAccessThreads.incrementAndGet();
-                    if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:upgradeDatabase: Increment DB access threads: now " + Integer.toString(sDbAccessThreads));
+                    if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:upgradeDatabase: Increment DB access threads: now " + sDbAccessThreads.toString());
 
                     db = getDatabase();
                     if (db != null && db.isOpen()) {
@@ -345,6 +346,7 @@ public final class PrivacyPersistenceAdapter {
                             if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:upgradeDatabase: WriteLock: (pre)unlock");
                             sDbLock.writeLock().unlock();
                             if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:upgradeDatabase: WriteLock: (post)unlock");
+                            this.mConfigMonitor.endAuthorizedTransaction();
                         }
                     }
                 } catch (SQLException e) {
@@ -431,6 +433,7 @@ public final class PrivacyPersistenceAdapter {
         SQLiteDatabase db;
 
         try {
+            this.mConfigMonitor.beginAuthorizedTransaction();
             sDbAccessThreads.incrementAndGet();
             if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:setValue: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
@@ -452,6 +455,7 @@ public final class PrivacyPersistenceAdapter {
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:setValue: WriteLock: (post)unlock");
             }
         } finally {
+            this.mConfigMonitor.endAuthorizedTransaction();
             closeIdleDatabase();
         }
 
@@ -665,6 +669,7 @@ public final class PrivacyPersistenceAdapter {
         Cursor cursor = null;
 
         try {
+            this.mConfigMonitor.beginAuthorizedTransaction();
             sDbAccessThreads.incrementAndGet();
             if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
@@ -794,6 +799,7 @@ public final class PrivacyPersistenceAdapter {
                     if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:saveSettings: WriteLock: (pre)unlock");
                     sDbLock.writeLock().unlock();
                     if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:saveSettings: WriteLock: (post)unlock");
+                    this.mConfigMonitor.endAuthorizedTransaction();
                 }
                 result = true;
             }
@@ -871,6 +877,7 @@ public final class PrivacyPersistenceAdapter {
 
         SQLiteDatabase db = null;
         try {
+            this.mConfigMonitor.beginAuthorizedTransaction();
             sDbAccessThreads.incrementAndGet();
             if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             db = getDatabase();
@@ -933,6 +940,7 @@ public final class PrivacyPersistenceAdapter {
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: WriteLock: (pre)unlock");
                 sDbLock.writeLock().unlock();
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: WriteLock: (post)unlock");
+                this.mConfigMonitor.endAuthorizedTransaction();
             }
         } catch (SQLiteException e) {
             result = false;
@@ -1018,6 +1026,7 @@ public final class PrivacyPersistenceAdapter {
         SQLiteDatabase db = null;
 
         try {
+            this.mConfigMonitor.beginAuthorizedTransaction();
             sDbAccessThreads.incrementAndGet();
             if (LOG_OPEN_AND_CLOSE) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: Increment DB access threads: now " + sDbAccessThreads.toString());
             
@@ -1071,6 +1080,7 @@ public final class PrivacyPersistenceAdapter {
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: WriteLock: (pre)unlock");
                 sDbLock.writeLock().unlock();
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: WriteLock: (post)unlock");
+                this.mConfigMonitor.endAuthorizedTransaction();
             }
         } catch (Exception e) {
             Log.e(TAG, "PrivacyPersistenceAdapter:purgeSettings - purging DB failed", e);
@@ -1084,11 +1094,13 @@ public final class PrivacyPersistenceAdapter {
     
 
     private void deleteRecursive(File fileOrDirectory) {
+        this.mConfigMonitor.beginAuthorizedTransaction();
         if (fileOrDirectory.isDirectory()) {
             for (File child : fileOrDirectory.listFiles())
                 deleteRecursive(child);
         }
         fileOrDirectory.delete();
+        this.mConfigMonitor.endAuthorizedTransaction();
     }
 
     private void createDatabase() {
