@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -749,11 +750,8 @@ public final class PrivacyPersistenceAdapter {
                     }
 
                     // save settings to plain text file (for access from core libraries)
-                    if (!writeExternalSettings("systemLogsSetting", packageName, s)) {
-                        throw new Exception("PrivacyPersistenceAdapter:saveSettings:failed to write systemLogsSettings file");
-                    }
-                    if (!writeExternalSettings("ipTableProtectSetting", packageName, s)) {
-                        throw new Exception("PrivacyPersistenceAdapter:saveSettings:failed to write ipTableProtectSetting file");
+                    if (!writeExternalPackageSettings(s)) {
+                        throw new Exception("PrivacyPersistenceAdapter:saveSettings:failed to write external settings files");
                     }
 
                     // mark DB transaction successful (commit the changes)
@@ -944,12 +942,10 @@ public final class PrivacyPersistenceAdapter {
                                 }
 
                                 // save settings to plain text file (for access from core libraries)
-                                if (!writeExternalSettings("systemLogsSetting", packageName, s)) {
-                                    throw new Exception("PrivacyPersistenceAdapter: rebuildFromCache:failed to write systemLogsSettings file");
+                                if (!writeExternalPackageSettings(s)) {
+                                    throw new Exception("PrivacyPersistenceAdapter:saveSettings:failed to write external settings files");
                                 }
-                                if (!writeExternalSettings("ipTableProtectSetting", packageName, s)) {
-                                    throw new Exception("PrivacyPersistenceAdapter: rebuildFromCache:failed to write ipTableProtectSetting file");
-                                }
+
                             } catch (Exception e) {
                                 PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter: rebuildFromCache: Error restoring for package " + s.getPackageName());
                             }
@@ -984,6 +980,67 @@ public final class PrivacyPersistenceAdapter {
         }
     }
 
+    
+    /**
+     * This method creates external settings files for access from core libraries
+     * 
+     * @param settings
+     *            Map of setting names and values: setting name is used as filename, and value as content
+     * @param packageName
+     *            name of package, or null if global setting
+     * @return true if file was successful written
+     * @throws Exception
+     *             if we cannot write settings to directory
+     */
+    private boolean writeExternalSetting(Map<String, String> settings, String packageName)
+            throws Exception {
+        // save settings to plain text file (for access from core libraries)
+        File settingsFolder;
+        if (packageName == null) {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
+        } else {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+        }
+        
+        boolean result = false;
+
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
+        sLock.writeLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)lock");
+        try {
+            if (!settingsFolder.exists()) {
+                settingsFolder.mkdirs();
+                settingsFolder.setReadable(true, false);
+                settingsFolder.setExecutable(true, false);
+            }
+            
+            File settingFile;
+            for (Entry<String, String> entry : settings.entrySet()) {
+                settingFile = new File(settingsettingsFolder.getAbsolutePath() + File.separator + entry.getKey());
+                if (!settingFile.exists()) {
+                    settingFile.createNewFile();
+                    settingFile.setReadable(true, false);
+                    settingFile.setExecutable(true, false);
+                }
+                OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(
+                        settingFile));
+                writer.append(entry.getValue());
+                writer.flush();
+                writer.close();
+            }
+        } catch (IOException e) {
+            // jump to catch block to avoid marking transaction as successful
+            throw new Exception("writeExternalFile - could not write settings to file", e);
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)unlock");
+            sLock.writeLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)unlock");
+        }
+
+        return true;
+    }
+    
+    
     /**
      * This method creates external settings files for access from core libraries
      * 
@@ -997,46 +1054,12 @@ public final class PrivacyPersistenceAdapter {
      * @throws Exception
      *             if we cannot write settings to directory
      */
-    private boolean writeExternalSettings(String settingsName, String packageName, PrivacySettings s)
+    private boolean writeExternalPackageSettings(PrivacySettings s)
             throws Exception {
-        // save settings to plain text file (for access from core libraries)
-        File settingsPackageDir = new File("/data/system/privacy/" + packageName + "/");
-        File systemLogsSettingFile = new File("/data/system/privacy/" + packageName + "/" + "/"
-                + settingsName);
-        boolean result = false;
-
-        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
-        sLock.writeLock().lock();
-        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)lock");
-        try {
-            settingsPackageDir.mkdirs();
-            settingsPackageDir.setReadable(true, false);
-            settingsPackageDir.setExecutable(true, false);
-            // create the setting files and make them readable
-            systemLogsSettingFile.createNewFile();
-            systemLogsSettingFile.setReadable(true, false);
-            // write settings to files
-            // PrivacyDebugger.d(TAG, "saveSettings - writing to file");
-            OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(
-                    systemLogsSettingFile));
-            // now decide which feature of setting we have to save
-            if (settingsName.equals("systemLogsSetting"))
-                writer.append(s.getSystemLogsSetting() + "");
-            else if (settingsName.equals("ipTableProtectSetting"))
-                writer.append(s.getIpTableProtectSetting() + "");
-            writer.flush();
-            writer.close();
-            result = true;
-        } catch (IOException e) {
-            // jump to catch block to avoid marking transaction as successful
-            throw new Exception("saveSettings - could not write settings to file", e);
-        } finally {
-            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)unlock");
-            sLock.writeLock().unlock();
-            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)unlock");
-        }
-
-        return true;
+        Map settingMap = new HashMap<String, String>();
+        settingMap.put("systemLogsSetting", s.getSystemLogsSetting() + "");
+        settingMap.put("ipTableProtectSetting", s.getIpTableProtectSetting() + "");
+        return writeExternalSetting(settingMap, s.getPackageName());
     }
 
     /**
