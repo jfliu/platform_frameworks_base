@@ -17,6 +17,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.RemoteException;
+import android.privacy.PrivacyPersistenceAdapter;
 import android.privacy.utilities.PrivacyDebugger;
 
 import java.io.File;
@@ -27,7 +28,11 @@ import java.util.Map;
  * PrivacySettingsManager's counterpart running in the system process, which
  * allows write access to /data/
  * 
- * @author Svyatoslav Hresyk TODO: add selective contact access management API
+ * @author Svyatoslav Hresyk
+ * @author Simeon Morgan <smorgan@digitalfeed.net>
+ * @author Stefan Thiele (CollegeDev)
+ * 
+ * TODO: add selective contact access management API
  * 
  *         {@hide}
  */
@@ -257,8 +262,6 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
 	
 	
 	public static final String DEBUG_FLAG_SEND_NOTIFICATIONS = "sendNotifications";
-	public static final String DEBUG_FLAG_USE_CACHE = "useCache";
-	public static final String DEBUG_FLAG_CACHE_SIZE = "cacheSize";
 	public static final String DEBUG_FLAG_OPEN_AND_CLOSE_DB = "openAndCloseDb";
 	
 	public static final int DEBUG_FLAG_TYPE_INTEGER = 0;
@@ -266,27 +269,18 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
 	
     public void setDebugFlagInt(String flagName, int value) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        if (flagName.equals(DEBUG_FLAG_CACHE_SIZE)) {
-            this.mPersistenceAdapter.setCacheSize(value);
-        } else {
-            throw new RemoteException();
-        }
+        // There are currently no debug flags which are integers
+        throw new RemoteException();
     }
     
     public int getDebugFlagInt(String flagName) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        if (flagName.equals(DEBUG_FLAG_CACHE_SIZE)) {
-            return this.mPersistenceAdapter.getCacheSize();
-        } else {
-            throw new RemoteException();
-        }
+        throw new RemoteException();
     }
     
     public void setDebugFlagBool(String flagName, boolean value) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        if (flagName.equals(DEBUG_FLAG_USE_CACHE)) {
-            this.mPersistenceAdapter.setUseCache(value);
-        } else if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
+        if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
             this.mPersistenceAdapter.setOpenAndCloseDb(value);
         } else if (flagName.equals(DEBUG_FLAG_SEND_NOTIFICATIONS)) {
             this.mSendNotifications = value;
@@ -297,9 +291,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     
     public boolean getDebugFlagBool(String flagName) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        if (flagName.equals(DEBUG_FLAG_USE_CACHE)) {
-            return this.mPersistenceAdapter.getUseCache();
-        } else if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
+        if (flagName.equals(DEBUG_FLAG_OPEN_AND_CLOSE_DB)) {
             return this.mPersistenceAdapter.getOpenAndCloseDb();
         } else if (flagName.equals(DEBUG_FLAG_SEND_NOTIFICATIONS)) {
             return this.mSendNotifications;
@@ -310,10 +302,8 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
     
     public Map getDebugFlags() {
         Map<String, Integer> debugFlags = new HashMap<String, Integer>();
-        debugFlags.put(DEBUG_FLAG_CACHE_SIZE, DEBUG_FLAG_TYPE_INTEGER);
         debugFlags.put(DEBUG_FLAG_OPEN_AND_CLOSE_DB, DEBUG_FLAG_TYPE_BOOLEAN);
         debugFlags.put(DEBUG_FLAG_SEND_NOTIFICATIONS, DEBUG_FLAG_TYPE_BOOLEAN);
-        debugFlags.put(DEBUG_FLAG_USE_CACHE, DEBUG_FLAG_TYPE_BOOLEAN);
         return debugFlags;
     }
     
@@ -323,6 +313,14 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         public void onUnauthorizedChange(int MSG_WHAT) {
             PrivacyDebugger.i(TAG,
                     "Config monitor: unauthorized change");
+            if (mPersistenceAdapter == null) {
+                PrivacyDebugger.d(TAG, "PrivacySettingsManagerService: onUnauthorizedChange: getting new PrivacyPersistenceAdapter");
+                mPersistenceAdapter = new PrivacyPersistenceAdapter(mContext);  
+            } else {
+                PrivacyDebugger.d(TAG, "PrivacySettingsManagerService: onUnauthorizedChange: Already have a PrivacyPersistenceAdapter");
+            }
+            PrivacyDebugger.d(TAG, "PrivacySettingsManagerService: onUnauthorizedChange: Executing rebuildFromCache");
+            mPersistenceAdapter.rebuildFromCache();
             // TODO Auto-generated method stub
             
         }
@@ -332,6 +330,7 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
             // TODO Auto-generated method stub
             PrivacyDebugger.i(TAG,
                     "Config monitor: finalize");
+            
         }
         
     }

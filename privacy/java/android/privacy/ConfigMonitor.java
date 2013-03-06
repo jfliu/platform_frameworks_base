@@ -1,7 +1,6 @@
 package android.privacy;
 
 import java.io.FileNotFoundException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import android.os.FileObserver;
@@ -36,6 +35,8 @@ final class ConfigMonitor {
 	private static final int ID_DATABASE_MONITOR = 0;
 	private static final int ID_DATABASE_JOURNAL_MONITOR = 1;
 	private static final int ID_SETTINGS_MONITOR = 2;
+	
+	private static final int MONITOR_DELAY = 2000; // Delay before starting watching when triggered, and delay before 
 	
 	private ConfigMonitorCallback mCallback;
 	
@@ -98,16 +99,34 @@ final class ConfigMonitor {
 	    PrivacyDebugger.i(TAG,"Starting monitors");
 	    if (mDatabaseMonitor == null) {
 	        mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
-	        mDatabaseMonitor.startWatching();
 	    }
 	    if (mJournalMonitor == null) {
 	        mJournalMonitor = new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
-	        mDatabaseMonitor.startWatching();
 	    }
 	    if (mFolderMonitor == null) {
 	        mFolderMonitor = new Monitor(SETTINGS_DIRECTORY, ID_SETTINGS_MONITOR);
-	        mDatabaseMonitor.startWatching();
 	    }
+
+	    // Need to delay the start-up of folder monitors due to delays in inotify notifications being received (or I think that's the issue)
+        (new Thread() {
+            public void run() {
+                try {
+                    sleep(MONITOR_DELAY);
+                } catch (Exception e) {
+                } finally {
+                    if (mDatabaseMonitor == null) {
+                        mDatabaseMonitor.startWatching();
+                    }
+                    if (mJournalMonitor == null) {
+                        mJournalMonitor.startWatching();
+                    }
+                    // Need to delay the start-up of folder monitors due to delays in inotify notifications
+                    if (mFolderMonitor == null) {
+                        mFolderMonitor.startWatching();
+                    }
+                }
+            }
+        }).start();
 	}
 	
 	private void stopMonitors() {
@@ -117,11 +136,11 @@ final class ConfigMonitor {
             mDatabaseMonitor = null;
         }
         if (mJournalMonitor != null) {
-            mDatabaseMonitor.stopWatching();
+            mJournalMonitor.stopWatching();
             mJournalMonitor = null;
         }
-        if (mFolderMonitor == null) {
-            mDatabaseMonitor.stopWatching();
+        if (mFolderMonitor != null) {
+            mFolderMonitor.stopWatching();
             mFolderMonitor = null;
         }
 	}
@@ -164,57 +183,77 @@ final class ConfigMonitor {
 	}
 	
 	public void handleEvent(int observerId, int event, String path) {
-	    //data was written to a file
-	    if ((FileObserver.MODIFY & event) != 0) {
-	        PrivacyDebugger.w(TAG, "Detected change: observerId is " + Integer.toString(observerId));
-	    	if(authorizedWritesInProgress <= 0) {
-	    		PrivacyDebugger.w(TAG, "inform adapter about modified database");
-	    		switch (observerId) {
-	    		case ID_DATABASE_MONITOR:
-	    		    doChangeCallback(MSG_DATABASE_MODIFIED);
-	    		case ID_DATABASE_JOURNAL_MONITOR:
-	    		    doChangeCallback(MSG_DATABASE_JOURNAL_MODIFIED);
-	    		case ID_SETTINGS_MONITOR:
-                    doChangeCallback(MSG_SETTINGS_MODIFIED);
-	    		}
-	    	} else {
-	    		PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
-	    	}
+
+	    PrivacyDebugger.w(TAG, "Detected change: observerId " + Integer.toString(observerId) + " : event " + Integer.toString(event) + " : path " + path);
+	    if(authorizedWritesInProgress <= 0) {
+	        //data was written to a file
+	        if ((FileObserver.MODIFY & event) != 0) {
+	            PrivacyDebugger.w(TAG, "Detected modification: observeId is " + Integer.toString(observerId));
+	            switch (observerId) {
+	            case ID_DATABASE_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_MODIFIED);
+	                break;
+	            case ID_DATABASE_JOURNAL_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_JOURNAL_MODIFIED);
+	                break;
+	            case ID_SETTINGS_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_SETTINGS_MODIFIED);
+	                break;
+	            }
+	        } else if (((FileObserver.DELETE_SELF | FileObserver.DELETE) & event) != 0) {
+	            // File, folder, or a subfile or folder was deleted
+	            PrivacyDebugger.w(TAG, "Detected deletion: observerId is " + Integer.toString(observerId));
+	            switch (observerId) {
+	            case ID_DATABASE_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_DELETED);
+	                break;
+	            case ID_DATABASE_JOURNAL_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_JOURNAL_DELETED);
+	                break;
+	            case ID_SETTINGS_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_SETTINGS_DELETED);
+	                break;
+	            }
+	        } else if (((FileObserver.MOVE_SELF | FileObserver.MOVED_FROM | FileObserver.MOVED_TO) & event) != 0) {
+	            PrivacyDebugger.w(TAG, "Detected move: observerId is " + Integer.toString(observerId));
+	            switch (observerId) {
+	            case ID_DATABASE_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_MOVED);
+	                break;
+	            case ID_DATABASE_JOURNAL_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_DATABASE_JOURNAL_MOVED);
+	                break;
+	            case ID_SETTINGS_MONITOR:
+	                mCallback.onUnauthorizedChange(MSG_SETTINGS_MOVED);
+	                break;
+	            }
+	        }
+	    } else {
+	        PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
 	    }
-	    //the monitored file or directory was deleted, monitoring effectively stops
-	    if (((FileObserver.DELETE_SELF | FileObserver.DELETE) & event) != 0) {
-	        PrivacyDebugger.w(TAG, "Detected deletion: observerId is " + Integer.toString(observerId));
-            switch (observerId) {
-            case ID_DATABASE_MONITOR:
-                doChangeCallback(MSG_DATABASE_DELETED);
-            case ID_DATABASE_JOURNAL_MONITOR:
-                doChangeCallback(MSG_DATABASE_JOURNAL_DELETED);
-            case ID_SETTINGS_MONITOR:
-                doChangeCallback(MSG_SETTINGS_DELETED);
-            }
+	    //If the main file or folder has been deleted or moved, clear the observer since monitoring will stop
+	    if (((FileObserver.DELETE_SELF | FileObserver.MOVE_SELF) & event) != 0) {
+	        switch (observerId) {
+	        case ID_DATABASE_MONITOR:
+	            if (mDatabaseMonitor != null) {
+	                mDatabaseMonitor.stopWatching();
+	                mDatabaseMonitor = null;
+	            }
+	            break;
+	        case ID_DATABASE_JOURNAL_MONITOR:
+	            if (mJournalMonitor != null) {
+	                mJournalMonitor.stopWatching();
+	                mJournalMonitor = null;
+	            }
+	            break;
+	        case ID_SETTINGS_MONITOR:
+	            if (mFolderMonitor != null) {
+	                mFolderMonitor.stopWatching();
+	                mFolderMonitor = null;
+	            }
+	            break;
+	        }
 	    }
-	    //the monitored file or directory was moved; monitoring continues
-	    if (((FileObserver.MOVE_SELF | FileObserver.MOVED_FROM) & event) != 0) {
-	        PrivacyDebugger.w(TAG, "Detected move: observerId is " + Integer.toString(observerId));
-            switch (observerId) {
-            case ID_DATABASE_MONITOR:
-                doChangeCallback(MSG_DATABASE_MOVED);
-            case ID_DATABASE_JOURNAL_MONITOR:
-                doChangeCallback(MSG_DATABASE_JOURNAL_MOVED);
-            case ID_SETTINGS_MONITOR:
-                doChangeCallback(MSG_SETTINGS_MOVED);
-            }
-	    }
-	}
-	
-	
-	/**
-	 * Execute 'onUnauthorizedChange' callbacks against all registered callback listeners
-	 * TODO: does this need to be synchronized? probably.
-	 * @param callbackMessage identifier for the message to be passed
-	 */
-	private void doChangeCallback(int callbackMessage) {
-	    mCallback.onUnauthorizedChange(callbackMessage);
 	}
 	
 	
@@ -228,10 +267,16 @@ final class ConfigMonitor {
         switch (observerId) {
         case ID_DATABASE_MONITOR:
             mDatabaseMonitor = null;
+            break;
         case ID_DATABASE_JOURNAL_MONITOR:
             mJournalMonitor = null;
+            break;
         case ID_SETTINGS_MONITOR:
             mFolderMonitor = null;
+            break;
+        }
+        synchronized (sInstance) {
+            startMonitors();            
         }
 	}
 	
@@ -248,7 +293,16 @@ final class ConfigMonitor {
 	 */
 	synchronized void endAuthorizedTransaction() {
 	    PrivacyDebugger.i(TAG,"endAuthorizedTransaction");
-	    authorizedWritesInProgress--;
+	    (new Thread() {
+	        public void run() {
+	            try {
+	                sleep(MONITOR_DELAY);
+	            } catch (Exception e) {
+	            } finally {
+	                authorizedWritesInProgress--;
+	            }
+	        }
+	    }).start();
 	}
 	
 	/**
@@ -285,17 +339,20 @@ final class ConfigMonitor {
 	    private int observerId;
 	    
         public Monitor(String path, int observerId) {
-            super(path);
+            //super(path, FileObserver.DELETE | FileObserver.DELETE_SELF | FileObserver.MODIFY | FileObserver.MOVE_SELF | FileObserver.MOVED_FROM | FileObserver.MOVED_TO );
+            super(path, FileObserver.ALL_EVENTS);
             this.observerId = observerId;
         }
         
         @Override
         public void onEvent(int event, String path) {
+            PrivacyDebugger.d("ConfigMonitor", "Event " + Integer.toString(event) + " on " + path);
             handleEvent(observerId, event, path);
         }
         
         @Override
         public void finalize () {
+            PrivacyDebugger.d("ConfigMonitor", "Finalize on " + Integer.toString(observerId));
             handleFinalize(observerId);
             super.finalize();
         }
@@ -323,7 +380,5 @@ final class ConfigMonitor {
 		 * @param authorizedAccessInProgress is the last state of our internal authorizedSave variable
 		 */
 		void onMonitorFinalize(int authorizedWritesInProgress);
-		
 	}
-
 }

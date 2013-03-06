@@ -22,24 +22,14 @@ import java.util.Random;
 
 /**
  * Holds privacy settings for access to all private data types for a single application
- * @author Svyatoslav Hresyk 
+ * @author Svyatoslav Hresyk
+ * @author Simeon Morgan <smorgan@digitalfeed.net>
+ * @author Stefan Thiele (CollegeDev)
  * {@hide} 
  */
-public final class PrivacySettings extends PrivacySettingsStub implements Parcelable {
+public final class PrivacySettings implements Parcelable {
     
-    // **SM: to remove
-    /*private final static boolean isStub = false;
-    
-    boolean isStub() {
-        return isStub;
-    }*/
-
-    /**
-     * Error occurred while obtaining the setting
-     * This is currently the same as EMPTY for backward compatibility, but that will be revised
-     */
-    public static final byte ERROR = 1;
-    
+   
     /**
      * Real value, provided by the unmodified Android framework.
      */
@@ -67,6 +57,13 @@ public final class PrivacySettings extends PrivacySettingsStub implements Parcel
      * Line1Number: a random string consisting of 13 numeric digits
      */
     public static final byte RANDOM = 3;
+
+    /**
+     * Error occurred while obtaining the setting
+     * This is currently the same as EMPTY for backward compatibility, but that will be revised
+     */
+    public static final byte ERROR = 4;
+
     
     public static final byte SETTING_NOTIFY_OFF = 0;
     public static final byte SETTING_NOTIFY_ON = 1;

@@ -36,7 +36,7 @@ public final class PrivacyDebugger {
     private static int sDebuggerState = DEBUGGER_ENABLED;
     private static boolean enabled = true;
 
-    public PrivacyDebugger () {
+    private PrivacyDebugger () {
         Log.i(TAG,"PrivacyDebugger: constructor triggered");
     }
 
@@ -87,19 +87,19 @@ public final class PrivacyDebugger {
     }
 
     public static void i(String TAG, String msg, Throwable exception) {
-
+        log(LogLevel.INFO, TAG, msg, exception);
     }
 
     public static void w(String TAG, String msg, Throwable exception) {
-
+        log(LogLevel.WARN, TAG, msg, exception);
     }
 
     public static void e(String TAG, String msg, Throwable exception) {
-
+        log(LogLevel.ERROR, TAG, msg, exception);
     }
 
     public static void d(String TAG, String msg, Throwable exception) {
-
+        log(LogLevel.DEBUG, TAG, msg, exception);
     }
 
     public static void i(String TAG, String msg, String packageName) {
@@ -157,28 +157,62 @@ public final class PrivacyDebugger {
                     Log.i(TAG,msg + " - called from package: UNKNOWN" + IDENTIFIER);
             }
         }*/
+        /*
+        if (enabled) {
+            Log.d("PrivacyDebugger", "Enabled = true");
+        } else {
+            Log.d("PrivacyDebugger", "Enabled = false");
+        }
+        
+        if (logLevel != null) {
+            Log.d("PrivacyDebugger", "Log level: " + logLevel.toString());
+        } else {
+            Log.d("PrivacyDebugger", "Log level is null");
+        }
+        (new Throwable()).printStackTrace();
+        Log.d("PrivacyDebugger", "Trace", new Throwable());
+        if (TAG != null) {
+            Log.d("PrivacyDebugger", "Tag != null");
+        } else {
+            Log.d("PrivacyDebugger", "Tag == null");
+        }
+        
+        if (msg != null) {
+            Log.d("PrivacyDebugger", "msg != null");
+        } else {
+            Log.d("PrivacyDebugger", "msg == null");
+        }*/
+
         if (enabled && TAG != null && msg != null) {
             if (exception != null) {
                 switch (logLevel) {
                 case INFO:
                     Log.i(TAG, msg, exception);
+                    break;
                 case WARN:
                     Log.w(TAG, msg, exception);
+                    break;
                 case ERROR:
                     Log.e(TAG, msg, exception);
+                    break;
                 case DEBUG:
                     Log.d(TAG, msg, exception);
+                    break;
                 }
             } else {
                 switch (logLevel) {
                 case INFO:
                     Log.i(TAG, msg);
+                    break;
                 case WARN:
                     Log.w(TAG, msg);
+                    break;
                 case ERROR:
                     Log.e(TAG, msg);
+                    break;
                 case DEBUG:
                     Log.d(TAG, msg);
+                    break;
                 }
             }
         }
