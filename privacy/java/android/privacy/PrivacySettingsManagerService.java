@@ -133,6 +133,14 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         return result;
     }
     
+    public boolean setGlobalSetting(String setting, String value) throws RemoteException {
+        // Why are we letting the system do anything at all?
+        if (Binder.getCallingUid() != 1000) {
+            checkCallerCanWriteOrThrow();
+        }
+        return mPersistenceAdapter.setGlobalSetting(setting, value);
+    }
+    
     public void notification(final String packageName, final byte accessMode,
             final String dataType, final String output) {
         if (mBootCompleted && mNotificationsEnabled && mSendNotifications) {

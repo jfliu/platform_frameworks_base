@@ -41,6 +41,7 @@ import java.util.Random;
 
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 ///////////////////////////////////////////
@@ -414,7 +415,7 @@ public class MediaRecorder
         try{
             //boolean isAllowed = false;
             if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-            PrivacySettings pSet = null;
+            IPrivacySettings pSet = null;
             String[] package_names = getPackageName();
             
             if(package_names == null){
@@ -424,32 +425,22 @@ public class MediaRecorder
                 
             switch(privacySetting){
             case MODE_RECORD_AUDIO:   
-                try {
-                    for(int i=0;i < package_names.length; i++){
-                        pSet = pSetMan.getSettings(package_names[i]);
-                        if(pSet != null && pSet.getRecordAudioSetting() != PrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
-                            return IS_NOT_ALLOWED;
-                        }
-                        pSet = null;
+                for(int i=0;i < package_names.length; i++){
+                    pSet = pSetMan.getSettingsSafe(package_names[i]);
+                    if(pSet != null && PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) != IPrivacySettings.REAL) { //if pSet is null, we allow application to access to mic
+                        return IS_NOT_ALLOWED;
                     }
-                } catch (PrivacyServiceException e) {
-                    Log.e(PRIVACY_TAG,"MediaRecorder:checkIfPackagesAllowed:return GOT_ERROR, because PrivacyServiceException occurred");
-                    return GOT_ERROR;
+                    pSet = null;
                 }
                 return IS_ALLOWED;
 
             case MODE_RECORD_BOTH:
-                try {
-                    for(int i=0;i < package_names.length; i++){
-                        pSet = pSetMan.getSettings(package_names[i]);
-                        if(pSet != null && ((pSet.getRecordAudioSetting() != PrivacySettings.REAL) || (pSet.getCameraSetting() != PrivacySettings.REAL))){ //if pSet is null, we allow application to access to mic
-                            return IS_NOT_ALLOWED;
-                        }
-                        pSet = null;
+                for(int i=0;i < package_names.length; i++){
+                    pSet = pSetMan.getSettings(package_names[i]);
+                    if(pSet != null && ((PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) != PrivacySettings.REAL) || (PrivacySettings.getOutcome(pSet.getCameraSetting()) != PrivacySettings.REAL))){ //if pSet is null, we allow application to access to mic
+                        return IS_NOT_ALLOWED;
                     }
-                } catch (PrivacyServiceException e) {
-                    Log.e(PRIVACY_TAG,"MediaRecorder:checkIfPackagesAllowed:return GOT_ERROR, because PrivacyServiceException occurred");
-                    return GOT_ERROR;
+                    pSet = null;
                 }
                 return IS_ALLOWED;
             default:

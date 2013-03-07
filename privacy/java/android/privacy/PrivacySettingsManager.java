@@ -12,14 +12,24 @@
 
 package android.privacy;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.lang.ref.WeakReference;
+import java.util.HashMap;
 import java.util.Map;
 import android.content.Context;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
+import android.privacy.PrivacyPersistenceAdapter;
 import android.privacy.PrivacyServiceDisconnectedException;
 import android.privacy.PrivacyServiceInvalidException;
+import android.privacy.PrivacySettingsAllow;
+import android.privacy.PrivacySettingsDeny;
 import android.privacy.PrivacySettingsManager;
 import android.privacy.PrivacySettingsManagerService;
 import android.privacy.utilities.PrivacyDebugger;
@@ -27,6 +37,7 @@ import android.privacy.utilities.PrivacyDebugger;
 /**
  * Provides API access to the privacy settings
  * @author Svyatoslav Hresyk
+ * @author Simeon Morgan <smorgan@digitalfeed.net>
  * TODO: selective contacts access
  * {@hide}
  */
@@ -69,12 +80,12 @@ public final class PrivacySettingsManager {
     }
     
     @Deprecated
-    public PrivacySettings getSettings(String packageName, int uid)
+    public IPrivacySettings getSettings(String packageName, int uid)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         return getSettings(packageName);
     }
     
-    public PrivacySettings getSettingsSafe(String packageName) {
+    public IPrivacySettings getSettingsSafe(String packageName) {
         try {
             return getSettings(packageName);
         } catch (PrivacyServiceException e) {
@@ -82,7 +93,7 @@ public final class PrivacySettingsManager {
         }
     }
     
-    public PrivacySettings getSettings(String packageName)
+    public IPrivacySettings getSettings(String packageName)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
         try {
@@ -403,7 +414,48 @@ public final class PrivacySettingsManager {
         }
     }
     
-    private PrivacySettings getOnErrorObject(String packageName) {
-        return null;
+    private IPrivacySettings getOnErrorObject(String packageName) {
+        String onErrorSetting;
+        try {
+            onErrorSetting = readExternalSetting(PrivacyPersistenceAdapter.ACTION_ON_ERROR_SETTING);
+            if (onErrorSetting.equals("allow")) {
+                return new PrivacySettingsAllow();
+            } else {
+                return new PrivacySettingsDeny();
+            }
+        } catch (Exception e) {
+            PrivacyDebugger.e(TAG, "PrivacySettingsManager:getOnErrorObject: exception occurred getting on error setting", e);
+            return new PrivacySettingsDeny(); 
+        }        
+    }
+    
+    private String readExternalSetting(String setting) throws IOException, FileNotFoundException {
+        File settingFile = new File(PrivacyPersistenceAdapter.SETTINGS_DIRECTORY + File.separator + setting);
+        
+        if (!settingFile.exists()) {
+            throw new FileNotFoundException("readExternalSetting: Settings file missing for setting: " + setting);
+        }
+        if (settingFile.isDirectory()) {
+            throw new IOException("readExternalSetting: Provided setting name pointed to folder, not file");
+        }
+        
+        try {
+            StringWriter writer;
+            
+            InputStreamReader reader = new InputStreamReader(new FileInputStream(settingFile));
+            try {
+                writer = new StringWriter();
+                char[] buffer = new char[1024];
+                int count;
+                while ((count = reader.read(buffer)) != -1) {
+                    writer.write(buffer, 0, count);
+                }
+                return writer.toString();
+            } finally {
+                reader.close();
+            }
+        } catch (IOException e) {
+            throw new IOException("readExternalSetting - could not read settings file", e);
+        }
     }
 }

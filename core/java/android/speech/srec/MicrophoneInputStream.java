@@ -27,6 +27,7 @@ import java.lang.IllegalStateException;
 //BEGIN PRIVACY
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 
@@ -133,18 +134,13 @@ public final class MicrophoneInputStream extends InputStream {
                 Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
                 return GOT_ERROR;
             }
-            PrivacySettings pSet = null;
-            try {
-                for(int i=0;i < package_names.length; i++){
-                    pSet = pSetMan.getSettings(package_names[i]);
-                    if(pSet != null && (pSet.getRecordAudioSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-                        return IS_NOT_ALLOWED;
-                    }
-                    pSet = null;
+            IPrivacySettings pSet = null;
+            for(int i=0;i < package_names.length; i++){
+                pSet = pSetMan.getSettingsSafe(package_names[i]);
+                if(pSet != null && (PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) != IPrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+                    return IS_NOT_ALLOWED;
                 }
-            } catch (PrivacyServiceException e) {
-                Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed:return GOT_ERROR, because PrivacyServiceException occurred");
-                return GOT_ERROR;
+                pSet = null;
             }
             return IS_ALLOWED;
         } catch (Exception e){

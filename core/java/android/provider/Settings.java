@@ -65,6 +65,7 @@ import android.os.Process;
 import java.util.Random;
 
 import android.privacy.IPrivacySettingsManager;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 //////////////////////////////////////////////////
@@ -2788,12 +2789,12 @@ public final class Settings {
   	       try{
   	           if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
   		       if(mPm == null) mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-  		       PrivacySettings settings = null;
+  		       IPrivacySettings settings = null;
   		       final String[] packages = getPackageName();
   		       if(packages != null && packages.length > 0){
   			       for(int i = 0; i < packages.length; i++){
-  				       settings = pSetMan.getSettings(packages[i]);
-  				       if(settings != null && settings.getAndroidIdSetting() != PrivacySettings.REAL){
+  				       settings = pSetMan.getSettingsSafe(packages[i]);
+  				       if(settings != null && PrivacySettings.getOutcome(settings.getAndroidIdSetting()) != PrivacySettings.REAL){
   					       String output = settings.getAndroidID();
   					       if(output != null){
   						       pSetMan.notification(packages[i], 0, settings.getAndroidIdSetting(), PrivacySettings.DATA_ANDROID_ID, output, null);

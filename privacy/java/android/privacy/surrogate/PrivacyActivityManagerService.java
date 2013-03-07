@@ -15,6 +15,7 @@ package android.privacy.surrogate;
 import android.content.Context;
 import android.content.Intent;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 import android.privacy.PrivacySettingsManagerService;
@@ -68,46 +69,35 @@ public final class PrivacyActivityManagerService {
 
         if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
 
-        PrivacySettings pSet;
+        IPrivacySettings pSet;
         String action = intent.getAction();
         String output;
         // outgoing call
         if (action.equals(Intent.ACTION_NEW_OUTGOING_CALL)) {
+            pSet = pSetMan.getSettingsSafe(packageName);
+            output = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+
+            // store the original version to supply real values to trusted applications
+            // since Android sends the same intent to multiple receivers
+            if (tmpOutHash != hashCode(intent)) {
+                tmpOut = (Intent)intent.clone();
+                tmpOutHash = hashCode(intent);
+                tmpOutReceivers = receivers;
+            }
+
             try {
-                pSet = pSetMan.getSettings(packageName);
-                output = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
-
-                // store the original version to supply real values to trusted applications
-                // since Android sends the same intent to multiple receivers
-                if (tmpOutHash != hashCode(intent)) {
-                    tmpOut = (Intent)intent.clone();
-                    tmpOutHash = hashCode(intent);
-                    tmpOutReceivers = receivers;
+                if (pSet != null && PrivacySettings.getOutcome(pSet.getOutgoingCallsSetting()) != IPrivacySettings.REAL) {
+                    output = "";
+                    intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
+                    pSetMan.notification(packageName, pSet.getOutgoingCallsSetting(), IPrivacySettings.DATA_OUTGOING_CALL, null);
+                } else if (tmpOutHash == hashCode(intent)) {
+                    // if this intent was stored before, get the real value since it could have been modified
+                    output = tmpOut.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+                    intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
+                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_OUTGOING_CALL, null);
                 }
-
-                try {
-                    if (pSet != null && pSet.getOutgoingCallsSetting() != PrivacySettings.REAL) {
-                        output = "";
-                        intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
-                        pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_OUTGOING_CALL, null);
-                    } else if (tmpOutHash == hashCode(intent)) {
-                        // if this intent was stored before, get the real value since it could have been modified
-                        output = tmpOut.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
-                        intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
-                        pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_OUTGOING_CALL, null);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "failed to enforce intent broadcast permission", e);
-                }
-            } catch (PrivacyServiceException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: PrivacyServiceException occurred", e);
-                output = "";
-                intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
-                pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_OUTGOING_CALL, null);
-            } catch (NullPointerException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: NullPointerException occurred - probably privacy service", e);
-                output = "";
-                intent.putExtra(Intent.EXTRA_PHONE_NUMBER, output);
+            } catch (Exception e) {
+                Log.e(TAG, "failed to enforce intent broadcast permission", e);
             }
 
             if (tmpOutReceivers > 1) {
@@ -126,37 +116,26 @@ public final class PrivacyActivityManagerService {
             // don't do anything if no incoming phone number is broadcasted
             if (output == null || output.isEmpty()) return;
 
+            pSet = pSetMan.getSettingsSafe(packageName);
+
+            if (tmpInHash != hashCode(intent)) {
+                tmpIn = (Intent)intent.clone();
+                tmpInHash = hashCode(intent);
+                tmpInReceivers = receivers;
+            }
+
             try {
-                pSet = pSetMan.getSettings(packageName, uid);
-
-                if (tmpInHash != hashCode(intent)) {
-                    tmpIn = (Intent)intent.clone();
-                    tmpInHash = hashCode(intent);
-                    tmpInReceivers = receivers;
+                if (pSet != null && PrivacySettings.getOutcome(pSet.getIncomingCallsSetting()) != IPrivacySettings.REAL) {
+                    output = "";
+                    intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
+                    pSetMan.notification(packageName, pSet.getIncomingCallsSetting(), IPrivacySettings.DATA_INCOMING_CALL, null);
+                } else if (tmpInHash == hashCode(intent)) {
+                    output = tmpIn.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
+                    intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
+                    pSetMan.notification(packageName, pSet.getIncomingCallsSetting(), IPrivacySettings.DATA_INCOMING_CALL, null);
                 }
-
-                try {
-                    if (pSet != null && pSet.getIncomingCallsSetting() != PrivacySettings.REAL) {
-                        output = "";
-                        intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
-                        pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_INCOMING_CALL, null);
-                    } else if (tmpInHash == hashCode(intent)) {
-                        output = tmpIn.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
-                        intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
-                        pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_INCOMING_CALL, null);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "failed to enforce intent broadcast permission", e);
-                }
-            } catch (PrivacyServiceException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: PrivacyServiceException occurred", e);
-                output = "";
-                intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
-                pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_INCOMING_CALL, null);
-            } catch (NullPointerException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: NullPointerException occurred - probably privacy service", e);
-                output = "";
-                intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
+            } catch (Exception e) {
+                Log.e(TAG, "failed to enforce intent broadcast permission", e);
             }
 
             if (tmpInReceivers > 1) {
@@ -169,7 +148,7 @@ public final class PrivacyActivityManagerService {
             // incoming SMS
         } else if (action.equals(SMS_RECEIVED_ACTION_INTENT)) {
             try {
-                pSet = pSetMan.getSettings(packageName, uid);
+                pSet = pSetMan.getSettingsSafe(packageName);
                 output = "[real]";
                 //            Log.d(TAG, "package: " + packageName + " uid: " + uid);
 
@@ -187,44 +166,29 @@ public final class PrivacyActivityManagerService {
                     //                Log.d(TAG, "known intent; hash: " + hashCode(intent) + " remaining receivers: " + tmpSmsReceivers);
                 }
 
-                try {
-                    if (pSet != null && pSet.getSmsSetting() != PrivacySettings.REAL) {
-                        output = "[empty]";
+                if (pSet != null && PrivacySettings.getOutcome(pSet.getSmsSetting()) != IPrivacySettings.REAL) {
+                    output = "[empty]";
 
-                        Object[] emptypdusObj = new Object[1];
-                        emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
-                        intent.putExtra("pdus", emptypdusObj);
+                    Object[] emptypdusObj = new Object[1];
+                    emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
+                    intent.putExtra("pdus", emptypdusObj);
 
-                        //                    Log.d(TAG, "permission denied, replaced pdu; pdu number: " + 
-                        //                            (o != null ? o.length : "null") + " " +
-                        //                        "1st pdu length:" + (b != null ? b.length : "null"));
-                        pSetMan.notification(packageName, uid, PrivacySettings.EMPTY, PrivacySettings.DATA_SMS, null, pSet);
-                    } else if (tmpSmsHash == hashCode(intent)) {
-                        intent.putExtra("pdus", tmpSms.getSerializableExtra("pdus"));
+                    //                    Log.d(TAG, "permission denied, replaced pdu; pdu number: " + 
+                    //                            (o != null ? o.length : "null") + " " +
+                    //                        "1st pdu length:" + (b != null ? b.length : "null"));
+                    pSetMan.notification(packageName, pSet.getSmsSetting(), IPrivacySettings.DATA_SMS, null);
+                } else if (tmpSmsHash == hashCode(intent)) {
+                    intent.putExtra("pdus", tmpSms.getSerializableExtra("pdus"));
 
-                        o = ((Object[])intent.getSerializableExtra("pdus"));
-                        b = o != null ? (byte[])o[0] : null;
-                        //                    Log.d(TAG, "permission granted, inserting saved pdus; pdu number: " + 
-                        //                            (o != null ? o.length : "null") + " " +
-                        //                            "1st pdu length:" + (b != null ? b.length : "null"));
-                        pSetMan.notification(packageName, uid, PrivacySettings.REAL, PrivacySettings.DATA_SMS, null, pSet);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "failed to enforce intent broadcast permission", e);
+                    o = ((Object[])intent.getSerializableExtra("pdus"));
+                    b = o != null ? (byte[])o[0] : null;
+                    //                    Log.d(TAG, "permission granted, inserting saved pdus; pdu number: " + 
+                    //                            (o != null ? o.length : "null") + " " +
+                    //                            "1st pdu length:" + (b != null ? b.length : "null"));
+                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SMS, null);
                 }
-            } catch (PrivacyServiceException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: PrivacyServiceException occurred", e);
-                output = "[empty]";
-                Object[] emptypdusObj = new Object[1];
-                emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
-                intent.putExtra("pdus", emptypdusObj);
-                pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_SMS, null);
-            } catch (NullPointerException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: NullPointerException occurred - probably privacy service", e);
-                output = "[empty]";
-                Object[] emptypdusObj = new Object[1];
-                emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
-                intent.putExtra("pdus", emptypdusObj);
+            } catch (Exception e) {
+                Log.e(TAG, "failed to enforce intent broadcast permission", e);
             }
 
             if (tmpSmsReceivers > 1) {
@@ -238,8 +202,7 @@ public final class PrivacyActivityManagerService {
             // incoming MMS
         } else if (action.equals(WAP_PUSH_RECEIVED_INTENT) ||
                 action.equals(DATA_SMS_RECEIVED_INTENT)) {
-            try {
-                pSet = pSetMan.getSettings(packageName, uid);
+                pSet = pSetMan.getSettingsSafe(packageName);
                 output = "[real]";
 
                 Object[] o = ((Object[])intent.getSerializableExtra("pdus"));
@@ -258,13 +221,13 @@ public final class PrivacyActivityManagerService {
                 }
 
                 try {
-                    if (pSet != null && pSet.getMmsSetting() != PrivacySettings.REAL) {
+                    if (pSet != null && PrivacySettings.getOutcome(pSet.getMmsSetting()) != IPrivacySettings.REAL) {
                         output = "[empty]";
 
                         Object[] emptypdusObj = new Object[1];
                         emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
                         intent.putExtra("pdus", emptypdusObj);
-                        pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_MMS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.EMPTY, IPrivacySettings.DATA_MMS, null);
                     } else if (tmpMmsHash == hashCode(intent)) {
                         intent.putExtra("pdus", tmpMms.getSerializableExtra("pdus"));
 
@@ -273,25 +236,11 @@ public final class PrivacyActivityManagerService {
                         //                    Log.d(TAG, "permission granted, inserting saved pdus; pdu number: " + 
                         //                            (o != null ? o.length : "null") + " " +
                         //                            "1st pdu length:" + (b != null ? b.length : "null"));
-                        pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_MMS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_MMS, null);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "failed to enforce intent broadcast permission", e);
                 }
-            } catch (PrivacyServiceException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: PrivacyServiceException occurred", e);
-                output = "[empty]";
-                Object[] emptypdusObj = new Object[1];
-                emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
-                intent.putExtra("pdus", emptypdusObj);
-                pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_MMS, null);
-            } catch (NullPointerException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: NullPointerException occurred - probably privacy service", e);
-                output = "[empty]";
-                Object[] emptypdusObj = new Object[1];
-                emptypdusObj[0] = (Object) new byte[] {0,32,1,-127,-16,0,0,17,-112,1,48,34,34,-128,1,32};
-                intent.putExtra("pdus", emptypdusObj);
-            }
 
             if (tmpMmsReceivers > 1) {
                 tmpMmsReceivers--;
@@ -308,27 +257,18 @@ public final class PrivacyActivityManagerService {
             } catch (PrivacyServiceException e) {
             } catch (NullPointerException e) {}
 
-            try {
-                pSet = pSetMan.getSettings(packageName);
+            pSet = pSetMan.getSettingsSafe(packageName);
 
-                if (pSet != null && pSet.getIntentBootCompletedSetting() != PrivacySettings.REAL) {
-                    //no notification since all applications will receive this -> spam
-                    intent.setAction("catchBootComplete");
-                    //Log.i(TAG,"package: " + packageName + " blocked INTENT_BOOT_COMPLETE");
-                    //intent.setPackage("com.android.privacy.pdroid.extension");
-                    pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_INTENT_BOOT_COMPLETED, null);
-                } else {
-                    intent.setAction(Intent.ACTION_BOOT_COMPLETED);
-                    //Log.i(TAG,"package: " + packageName + " allowed INTENT_BOOT_COMPLETE");
-                    pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_INTENT_BOOT_COMPLETED, null);
-                }
-            } catch (PrivacyServiceException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: PrivacyServiceException occurred", e);
+            if (pSet != null && PrivacySettings.getOutcome(pSet.getIntentBootCompletedSetting()) != IPrivacySettings.REAL) {
+                //no notification since all applications will receive this -> spam
                 intent.setAction("catchBootComplete");
-                pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_INTENT_BOOT_COMPLETED, null);
-            } catch (NullPointerException e) {
-                Log.e(TAG, "PrivacyActivityManagerService:enforcePrivacyPermission: NullPointerException occurred - probably privacy service", e);
-                intent.setAction("catchBootComplete");
+                //Log.i(TAG,"package: " + packageName + " blocked INTENT_BOOT_COMPLETE");
+                //intent.setPackage("com.android.privacy.pdroid.extension");
+                pSetMan.notification(packageName, IPrivacySettings.EMPTY, IPrivacySettings.DATA_INTENT_BOOT_COMPLETED, null);
+            } else {
+                intent.setAction(Intent.ACTION_BOOT_COMPLETED);
+                //Log.i(TAG,"package: " + packageName + " allowed INTENT_BOOT_COMPLETE");
+                pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_INTENT_BOOT_COMPLETED, null);
             }
 
             
@@ -341,18 +281,21 @@ public final class PrivacyActivityManagerService {
 
                 String addedPackageName = intent.getData().getSchemeSpecificPart();
                 int addedUid = intent.getExtras().getInt(Intent.EXTRA_UID);
+                // **SM: this function has been deprecated, because the UID wasn't being used anyway
                 try {
-                    // **SM: this function has been deprecated, because the UID wasn't being used anyway
-                    pSet = pSetMan.getSettings(addedPackageName, addedUid);
-
-                    // the settings in the privacy DB contain a different UID
-                    if (pSet != null && pSet.getUid() != addedUid) { // update the UID
-                        // **SM: Need to look at this more closely - it doesn't really seem to make a lot of sense...
-                        pSet.setUid(addedUid);
-                        pSetMan.saveSettings(pSet);
+                    pSet = pSetMan.getSettings(addedPackageName);
+                    if (pSet != null && pSet instanceof PrivacySettings) {
+                        PrivacySettings pSetSafe = (PrivacySettings)pSet;
+                        // the settings in the privacy DB contain a different UID
+                        if (pSetSafe.getUid() != addedUid) { // update the UID
+                            // **SM: Need to look at this more closely - it doesn't really seem to make a lot of sense...
+                            pSetSafe.setUid(addedUid);
+                            pSetMan.saveSettings(pSetSafe);
+                        }
                     }
                 } catch (PrivacyServiceException e) {
-                } catch (NullPointerException e) {}
+                    Log.e(TAG, "Error occurred when updating package UID in ACTION_PACKAGE_ADDED");
+                }
             }
         }
     }

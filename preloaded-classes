@@ -3,8 +3,10 @@
 # MIN_LOAD_TIME_MICROS=1250
 # MIN_PROCESSES=10
 # BEGIN PRIVACY
+android.privacy.ConfigMonitor
 android.privacy.PrivacySettingsManagerService
 android.privacy.PrivacySettingsManager
+android.privacy.IPrivacySettings
 android.privacy.PrivacySettings
 android.privacy.PrivacyPersistenceAdapter
 android.privacy.IPrivacySettingsManager

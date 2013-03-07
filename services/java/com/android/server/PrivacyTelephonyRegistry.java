@@ -25,6 +25,7 @@ import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
 import android.privacy.PrivacySettings;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettingsManager;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoGsm;
@@ -268,42 +269,38 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
 	
 	
 	private boolean isPackageAllowed(int PERMISSION, String packageName){
-	    PrivacySettings settings;
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        settings = pSetMan.getSettings(packageName);
-	    } catch (PrivacyServiceException e) {
-	        return false;
-	    }
+	    IPrivacySettings settings;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        settings = pSetMan.getSettingsSafe(packageName);
 	    
 	    // Default is to allow access if no settings are present
 		if(settings == null) return true;
 		
 		switch(PERMISSION){
 			case PERMISSION_CELL_LOCATION:
-			    if(settings.getLocationNetworkSetting() != PrivacySettings.REAL) {
+			    if(PrivacySettings.getOutcome(settings.getLocationNetworkSetting()) != PrivacySettings.REAL) {
 				//if(((settings.getLocationNetworkSetting() != PrivacySettings.REAL) || (settings.getLocationGpsSetting() != PrivacySettings.REAL)))
 					return false;
 			    } else { 
 					return true;
 			    }
 			case PERMISSION_CELL_INFO:
-				if(settings.getLocationNetworkSetting() != PrivacySettings.REAL)
+				if(PrivacySettings.getOutcome(settings.getLocationNetworkSetting()) != PrivacySettings.REAL)
 					return false;
 				else
 					return true;
 			case PERMISSION_SIGNAL_STRENGTH:
-				if(settings.getLocationNetworkSetting() != PrivacySettings.REAL)
+				if(PrivacySettings.getOutcome(settings.getLocationNetworkSetting()) != PrivacySettings.REAL)
 					return false;
 				else
 					return true;
 			case PERMISSION_CALL_STATE:
-				if(settings.getLocationNetworkSetting() != PrivacySettings.REAL)
+				if(PrivacySettings.getOutcome(settings.getLocationNetworkSetting()) != PrivacySettings.REAL)
 					return false;
 				else
 					return true;
 			case PERMISSION_SERVICE_STATE:
-				if(settings.getLocationNetworkSetting() != PrivacySettings.REAL)
+				if(PrivacySettings.getOutcome(settings.getLocationNetworkSetting()) != PrivacySettings.REAL)
 					return false;
 				else
 					return true;

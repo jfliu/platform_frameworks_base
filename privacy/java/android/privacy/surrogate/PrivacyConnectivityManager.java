@@ -23,6 +23,7 @@ import android.os.Binder;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 import android.util.Log;
@@ -48,44 +49,32 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
 	
 	@Override
 	public boolean getMobileDataEnabled() {
-	    try {
-	    	if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if(pSetMan != null && settings != null && settings.getForceOnlineState() == PrivacySettings.REAL){
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return true;
-	        }
-	        //		} else if(pSetMan != null && settings != null && settings.getNetworkInfoSetting() != PrivacySettings.REAL){
-	        //			pSetMan.notification(context.getPackageName(),-1, PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);  
-	        //			return false;
-	        //		}
-	        else{
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return super.getMobileDataEnabled();
-	        }
-	    } catch (PrivacyServiceException e) {
-            Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return true;
-	    }
-			
+    	if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if(pSetMan != null && settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL){
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return true;
+        }
+        //		} else if(pSetMan != null && settings != null && settings.getNetworkInfoSetting() != IPrivacySettings.REAL){
+        //			pSetMan.notification(context.getPackageName(),-1, IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);  
+        //			return false;
+        //		}
+        else{
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return super.getMobileDataEnabled();
+        }			
 	}
 	
 	@Override
 	public void setMobileDataEnabled(boolean enabled) {
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings == null || settings.getSwitchConnectivitySetting() != PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_SWITCH_CONNECTIVITY, null);
-	            super.setMobileDataEnabled(enabled);  
-	        } else {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_SWITCH_CONNECTIVITY, null); 
-	            //do nothing
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_SWITCH_CONNECTIVITY, null);
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings == null || PrivacySettings.getOutcome(settings.getSwitchConnectivitySetting()) != IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), settings.getSwitchConnectivitySetting(), IPrivacySettings.DATA_SWITCH_CONNECTIVITY, null);
+            super.setMobileDataEnabled(enabled);  
+        } else {
+            pSetMan.notification(context.getPackageName(), settings.getSwitchConnectivitySetting(), IPrivacySettings.DATA_SWITCH_CONNECTIVITY, null); 
+            //do nothing
         }
 	}
 	
@@ -93,54 +82,41 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
 	public NetworkInfo[] getAllNetworkInfo() {
         NetworkInfo output[] =  {new NetworkInfo(TYPE_MOBILE, 0, "MOBILE", "CONNECTED")};
 
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-    		
-    		if (settings != null && settings.getForceOnlineState() == PrivacySettings.REAL) {
-                output[0].setIsAvailable(true); 
-                output[0].setState(NetworkInfo.State.CONNECTED);
-                pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-                return output;             
-    		} else if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-                return super.getAllNetworkInfo();
-    		} else {
-    			pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-    			return output;
-    		}
-	    } catch (PrivacyServiceException e) {
-            Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-            return output;
-        }		
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+		IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+		
+		if (settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL) {
+            output[0].setIsAvailable(true); 
+            output[0].setState(NetworkInfo.State.CONNECTED);
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;             
+		} else if (settings == null || settings.getNetworkInfoSetting() == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getAllNetworkInfo();
+		} else {
+			pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+			return output;
+		}
 	}
 	
 	@Override
 	public NetworkInfo getNetworkInfo(int networkType) {
 	    NetworkInfo output =  new NetworkInfo(TYPE_MOBILE, 0, "MOBILE", "CONNECTED");
 
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-    		if (settings != null && settings.getForceOnlineState() == PrivacySettings.REAL) {
-                output.setIsAvailable(true);
-                output.setState(NetworkInfo.State.CONNECTED);
-                pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-                return output;
-            } else if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-                return super.getNetworkInfo(networkType);
-    		} else {
-    			pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-    			return output;
-    		}
-	    } catch (PrivacyServiceException e) {
-            Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-            return output;        
-        }
-			
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+		IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+		if (settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL) {
+            output.setIsAvailable(true);
+            output.setState(NetworkInfo.State.CONNECTED);
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
+        } else if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getNetworkInfo(networkType);
+		} else {
+			pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+			return output;
+		}			
 	}
 	
 	/**
@@ -149,25 +125,19 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
 	@Override
 	public NetworkInfo getActiveNetworkInfoForUid(int uid) {
 	    NetworkInfo output =  new NetworkInfo(TYPE_MOBILE, 0, "MOBILE", "UNKNOWN");
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings != null && settings.getForceOnlineState() == PrivacySettings.REAL){
-	            output.setIsAvailable(true);
-	            output.setState(NetworkInfo.State.CONNECTED);
-                pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-                return output;
-	        } else if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL){
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return super.getActiveNetworkInfoForUid(uid);
-	        } else{
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return output;
-	        }
-	    } catch (PrivacyServiceException e) {
-            Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return output;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL){
+            output.setIsAvailable(true);
+            output.setState(NetworkInfo.State.CONNECTED);
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
+        } else if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL){
+            pSetMan.notification(context.getPackageName(), settings.getNetworkInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getActiveNetworkInfoForUid(uid);
+        } else{
+            pSetMan.notification(context.getPackageName(), settings.getNetworkInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
         }
 	}
 	
@@ -175,25 +145,19 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
 	public NetworkInfo getActiveNetworkInfo() {
 	    NetworkInfo output =  new NetworkInfo(TYPE_MOBILE, 0, "MOBILE", "UNKNOWN");
 	    
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings != null && settings.getForceOnlineState() == PrivacySettings.REAL) {
-	            output.setIsAvailable(true);
-	            output.setState(NetworkInfo.State.CONNECTED);
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return output;	            
-	        } else if (settings == null || settings.getNetworkInfoSetting() != PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return super.getActiveNetworkInfo();
-	        } else {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return output;
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return output;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL) {
+            output.setIsAvailable(true);
+            output.setState(NetworkInfo.State.CONNECTED);
+            pSetMan.notification(context.getPackageName(), settings.getForceOnlineState(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return output;	            
+        } else if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) != IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getActiveNetworkInfo();
+        } else {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
         }
 	}
 	
@@ -201,86 +165,62 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
 	public LinkProperties getLinkProperties(int networkType) { //method to prevent getting device IP
 	    LinkProperties output = new LinkProperties();
 
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
 
-	        if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return super.getLinkProperties(networkType);
-	        } else {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return output;
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return output;
+        if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getLinkProperties(networkType);
+        } else {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
         }
 	}
 	
 	public LinkProperties getActiveLinkProperties() { //also for prevent getting device IP
 	    LinkProperties output = new LinkProperties();
 
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return super.getActiveLinkProperties();
-	        } else {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return output;
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return output;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.getActiveLinkProperties();
+        } else {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return output;
         }
 	}
 	
 	@Override
 	public boolean requestRouteToHost(int networkType, int hostAddress){
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings != null || settings.getForceOnlineState() == PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return true;
-	        } else if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(),-1, PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null); 
-	            return super.requestRouteToHost(networkType, hostAddress);
-	        } else {
-	            pSetMan.notification(context.getPackageName(),-1, PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);  
-	            return false;
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return true;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings != null || PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return true;
+        } else if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(),-1, IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null); 
+            return super.requestRouteToHost(networkType, hostAddress);
+        } else {
+            pSetMan.notification(context.getPackageName(),-1, IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null, null);  
+            return false;
         }
 	}
 	
 	@Override
 	public boolean requestRouteToHostAddress(int networkType, InetAddress hostAddress){
 	    
-	    try {
-	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-	        PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-	        if (settings != null && settings.getForceOnlineState() == PrivacySettings.REAL) {
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return true;
-	        } else if (settings == null || settings.getNetworkInfoSetting() == PrivacySettings.REAL){
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
-	            return super.requestRouteToHostAddress(networkType, hostAddress);
-	        } else{
-	            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
-	            return false;
-	        }
-	    } catch (PrivacyServiceException e) {
-	        Log.e(P_TAG, "PrivacyConnectivityManager: PrivacyServiceException occurred", e);
-	        pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);
-	        return true;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (settings != null && PrivacySettings.getOutcome(settings.getForceOnlineState()) == IPrivacySettings.REAL) {
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return true;
+        } else if (settings == null || PrivacySettings.getOutcome(settings.getNetworkInfoSetting()) == IPrivacySettings.REAL){
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null); 
+            return super.requestRouteToHostAddress(networkType, hostAddress);
+        } else{
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);  
+            return false;
         }
 	}
 }

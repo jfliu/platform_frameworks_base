@@ -27,6 +27,7 @@ import android.os.Process;
 import android.os.ServiceManager;
 
 import android.privacy.IPrivacySettingsManager;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 
@@ -131,14 +132,12 @@ public class SystemProperties
     	try{
     		//boolean isAllowed = false;
     		if(pSetMan != null){
-    			PrivacySettings pSet = null;
+    			IPrivacySettings pSet = null;
 	    		String[] package_names = getPackageName();
-	    		int uid = Process.myUid();
 	    		if(package_names != null){
-	    		
 		        	for(int i=0;i < package_names.length; i++){
-		        		pSet = pSetMan.getSettings(package_names[i], uid);
-		        		if(pSet != null && (pSet.getNetworkInfoSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
+		        		pSet = pSetMan.getSettingsSafe(package_names[i]);
+		        		if(pSet != null && PrivacySettings.getOutcome(pSet.getNetworkInfoSetting()) != PrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
 		        			return IS_NOT_ALLOWED;
 		        		}
 		        		pSet = null;

@@ -23,6 +23,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 import android.telephony.CellLocation;
@@ -70,22 +71,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getDeviceId() {
         String packageName = context.getPackageName();
         String output;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getDeviceIdSetting() == PrivacySettings.REAL) {
-                output = super.getDeviceId();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_DEVICE_ID, output);
-            } else {
-                output = pSet.getDeviceId(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getDeviceIdSetting(), PrivacySettings.DATA_DEVICE_ID, output);
-            }
-        } catch (PrivacyServiceException e) {
-            output = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_DEVICE_ID, output);
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getDeviceIdSetting()) == IPrivacySettings.REAL) {
+            output = super.getDeviceId();
+        } else {
+            output = pSet.getDeviceId(); // can be empty, custom or random
         }
+        pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);
         return output;
     }
 
@@ -96,22 +89,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getLine1Number() {
         String packageName = context.getPackageName();
         String output;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getLine1NumberSetting() == PrivacySettings.REAL) {
-                output = super.getLine1Number();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_LINE_1_NUMBER, output);
-            } else {
-                output = pSet.getLine1Number(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getLine1NumberSetting(), PrivacySettings.DATA_LINE_1_NUMBER, output);
-            }
-        } catch (PrivacyServiceException e) {
-            output = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_LINE_1_NUMBER, output);
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) == IPrivacySettings.REAL) {
+            output = super.getLine1Number();
+        } else {
+            output = pSet.getLine1Number(); // can be empty, custom or random
         }
+        pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         return output;
     }
 
@@ -123,22 +108,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getVoiceMailNumber() {
         String packageName = context.getPackageName();
         String output;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getLine1NumberSetting() == PrivacySettings.REAL) {
-                output = super.getVoiceMailNumber();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_LINE_1_NUMBER, output);
-            } else {
-                output = pSet.getLine1Number(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getLine1NumberSetting(), PrivacySettings.DATA_LINE_1_NUMBER, output);
-            }
-        } catch (PrivacyServiceException e) {
-            output = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_LINE_1_NUMBER, output);
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) == IPrivacySettings.REAL) {
+            output = super.getVoiceMailNumber();
+        } else {
+            output = pSet.getLine1Number(); // can be empty, custom or random
         }
+        pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         return output;
     }
 
@@ -151,22 +128,18 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         // **SM: don't need some kind of notification for this?
         List<NeighboringCellInfo> output = null;
         String output_label = "[null]";
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(context.getPackageName());
-            if (pSet == null || pSet.getLocationNetworkSetting() ==  PrivacySettings.REAL) {
-                output = super.getNeighboringCellInfo();
-                String cells = "";
-                for (NeighboringCellInfo i : output) cells += "\t" + i + "\n";
-                output_label = "[real value]:\n" + cells;
-            } else if (pSet.getLocationNetworkSetting() == PrivacySettings.EMPTY) {
-                // output = null;
-            } else {
-                output = new ArrayList<NeighboringCellInfo>();
-                output_label = "[empty list of cells]";
-            }
-        } catch (PrivacyServiceException e) {
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(context.getPackageName());
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) ==  IPrivacySettings.REAL) {
+            output = super.getNeighboringCellInfo();
+            String cells = "";
+            for (NeighboringCellInfo i : output) cells += "\t" + i + "\n";
+            output_label = "[real value]:\n" + cells;
+        } else if (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.EMPTY) {
+            // output = null;
+        } else {
+            output = new ArrayList<NeighboringCellInfo>();
+            output_label = "[empty list of cells]";
         }
         return output;
     }
@@ -201,22 +174,16 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
      */
     private String getNetworkInfo() {
         String packageName = context.getPackageName();
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getNetworkInfoSetting() == PrivacySettings.REAL) {
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
-                return null;
-            } else {
-                pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
-                return ""; // can only be empty
-            }
-        } catch (PrivacyServiceException e) {
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
-            return ""; // can only be empty            
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            return "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        String output;
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
+            output = null;
+        } else {
+            output = ""; // can only be empty
         }
+        pSetMan.notification(packageName, pSet.getNetworkInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
+        return output;
     }
 
     @Override
@@ -249,22 +216,16 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
      */    
     private String getSimInfo() {
         String packageName = context.getPackageName();
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet != null && pSet.getSimInfoSetting() != PrivacySettings.REAL) {
-                pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_NETWORK_INFO_SIM, null);            
-                return ""; // can only be empty
-            } else {
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_NETWORK_INFO_SIM, null);            
-                return null;
-            }
-        } catch (PrivacyServiceException e) {
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_NETWORK_INFO_SIM, null);            
-            return ""; // can only be empty
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            return "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        String output;
+        if (pSet != null && PrivacySettings.getOutcome(pSet.getSimInfoSetting()) != IPrivacySettings.REAL) {
+            output = ""; // can only be empty
+        } else {
+            output = null;
         }
+        pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
+        return output;
     }
 
     /**
@@ -274,23 +235,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getSimSerialNumber() {
         String packageName = context.getPackageName();
         String output;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getSimSerialNumberSetting() == PrivacySettings.REAL) {
-                output = super.getSimSerialNumber();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_SIM_SERIAL, output);            
-            } else {
-                output = pSet.getSimSerialNumber(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getSimSerialNumberSetting(), PrivacySettings.DATA_SIM_SERIAL, output);            
-            }
-        } catch (PrivacyServiceException e) {
-            output = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_SIM_SERIAL, output);            
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getSimSerialNumberSetting()) == IPrivacySettings.REAL) {
+            output = super.getSimSerialNumber();
+        } else {
+            output = pSet.getSimSerialNumber(); // can be empty, custom or random
         }
-
+        pSetMan.notification(packageName, pSet.getSimSerialNumberSetting(), IPrivacySettings.DATA_SIM_SERIAL, output);            
         return output;
     }
 
@@ -301,22 +253,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getSubscriberId() {
         String packageName = context.getPackageName();
         String output;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getSubscriberIdSetting() == PrivacySettings.REAL) {
-                output = super.getSubscriberId();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_SUBSCRIBER_ID, output);            
-            } else {
-                output = pSet.getSubscriberId(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), PrivacySettings.DATA_SUBSCRIBER_ID, output);            
-            }
-        } catch (PrivacyServiceException e) {
-            output = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_SUBSCRIBER_ID, output);            
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = "";
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getSubscriberIdSetting()) == IPrivacySettings.REAL) {
+            output = super.getSubscriberId();
+        } else {
+            output = pSet.getSubscriberId(); // can be empty, custom or random
         }
+        pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output);            
         return output;
     }
 
@@ -358,23 +302,16 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     @Override
     public CellLocation getCellLocation() {
         String packageName = context.getPackageName();
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getLocationNetworkSetting() == PrivacySettings.REAL) {
-                pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null);
-                CellLocation cl = super.getCellLocation();
-                return cl;
-            } else {
-                pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null);
-                return null;
-            }
-        } catch (PrivacyServiceException e) {
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_LOCATION_NETWORK, null);
-            return null;
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            return null;
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        CellLocation output;
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.REAL) {
+            output = super.getCellLocation();
+        } else {
+            output = null;
         }
+        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);
+        return output;
     }
 
     /**
@@ -386,21 +323,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String getDeviceSoftwareVersion() {
         String packageName = context.getPackageName();
         String output = "";
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getDeviceIdSetting() == PrivacySettings.REAL) {
-                output = super.getDeviceSoftwareVersion();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_DEVICE_ID, output);
-            } else {
-                output = pSet.getDeviceId(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getDeviceIdSetting(), PrivacySettings.DATA_DEVICE_ID, output);
-            }
-        } catch (PrivacyServiceException e){
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_DEVICE_ID, output);
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getDeviceIdSetting()) == IPrivacySettings.REAL) {
+            output = super.getDeviceSoftwareVersion();
+        } else {
+            output = pSet.getDeviceId(); // can be empty, custom or random
         }
-        
+        pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);        
         return output;
     }
 
@@ -413,20 +343,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         String packageName = context.getPackageName();
         String output = "";
         try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet != null && pSet.getLine1NumberSetting() != PrivacySettings.REAL) {
+            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+            IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+            if (pSet != null && PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) != IPrivacySettings.REAL) {
                 output = pSet.getLine1Number(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getLine1NumberSetting(), PrivacySettings.DATA_LINE_1_NUMBER, output);
             } else {
                 output = super.getCompleteVoiceMailNumber();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_LINE_1_NUMBER, output);
             }
-        } catch (PrivacyServiceException e){
-            output = null;
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_LINE_1_NUMBER, output);
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output = null;
+            pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         } catch (Exception e) {
             Log.e(TAG, "PrivacyTelphonyManager:Exception occurred", e);
             output = null;
@@ -545,22 +469,14 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
     public String[] getIsimImpu() {
         String packageName = context.getPackageName();
         String output[] = new String[1];
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(packageName);
-            if (pSet == null || pSet.getSubscriberIdSetting() == PrivacySettings.REAL) {
-                output = super.getIsimImpu();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_SUBSCRIBER_ID, output[0]);
-            } else {
-                output[0] = pSet.getSubscriberId(); // can be empty, custom or random
-                pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), PrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
-            }
-        } catch (PrivacyServiceException e) {
-            output[0] = "";
-            pSetMan.notification(packageName, PrivacySettings.ERROR, PrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
-            output[0] = "";
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getSubscriberIdSetting()) == IPrivacySettings.REAL) {
+            output = super.getIsimImpu();
+        } else {
+            output[0] = pSet.getSubscriberId(); // can be empty, custom or random
         }
+        pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
         return output;
     }
     /**
@@ -570,17 +486,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
      */
     public List<CellInfo> getAllCellInfo() {
         List<CellInfo> output = null;
-        try {
-            PrivacySettings pSet = pSetMan.getSettings(context.getPackageName());
-            if (pSet == null || pSet.getLocationNetworkSetting() == PrivacySettings.REAL) {
-                output = super.getAllCellInfo();
-            } else {
-                output = new ArrayList<CellInfo>();
-            }
-        } catch (PrivacyServiceException e) {
-            output = new ArrayList<CellInfo>();
-        } catch (NullPointerException e) {
-            Log.e(TAG, "PrivacyTelphonyManager:NullPointerException: probably privacy service", e);
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(context.getPackageName());
+        if (pSet == null || PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.REAL) {
+            output = super.getAllCellInfo();
+        } else {
             output = new ArrayList<CellInfo>();
         }
         return output;

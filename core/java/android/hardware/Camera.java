@@ -45,6 +45,7 @@ import java.util.concurrent.locks.ReentrantLock;
 ///////////////////////////////////////////////////////
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 
@@ -289,19 +290,14 @@ public class Camera {
                 Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
                 return GOT_ERROR;
     		}
-			PrivacySettings pSet = null;
-		    try {
-	        	for(int i=0;i < package_names.length; i++){
-	        		pSet = pSetMan.getSettings(package_names[i]);
-	        		if(pSet != null && (pSet.getCameraSetting() != PrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-	        			return IS_NOT_ALLOWED;
-	        		}
-	        		pSet = null;
-	        	}
-		    } catch (PrivacyServiceException e) {
-		        Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed:return GOT_ERROR, because PrivacyServiceException occurred");
-		        return GOT_ERROR;
-		    }
+			IPrivacySettings pSet = null;
+        	for(int i=0;i < package_names.length; i++){
+        		pSet = pSetMan.getSettingsSafe(package_names[i]);
+        		if(pSet != null && PrivacySettings.getOutcome(pSet.getCameraSetting()) != IPrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
+        			return IS_NOT_ALLOWED;
+        		}
+        		pSet = null;
+        	}
 	    	return IS_ALLOWED;
     	} catch (Exception e){
     		Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);

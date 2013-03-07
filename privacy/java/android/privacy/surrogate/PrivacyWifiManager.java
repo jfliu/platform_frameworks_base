@@ -26,6 +26,7 @@ import android.os.Binder;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
 import android.privacy.PrivacyServiceException;
+import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 import android.util.Log;
@@ -41,7 +42,7 @@ public class PrivacyWifiManager extends WifiManager{
     private PrivacySettingsManager pSetMan;
     private static final String P_TAG = "PrivacyWifiManager";
 
-    private enum PrivacyOutcome { REAL, EMPTY, CUSTOM, RANDOM, ERROR, FORCE_ONLINE };
+    private enum PrivacyOutcome { REAL, EMPTY, CUSTOM, RANDOM, ERROR_REAL, ERROR_EMPTY, FORCE_ONLINE };
 
 
     public PrivacyWifiManager(Context context, IWifiManager service){
@@ -51,29 +52,27 @@ public class PrivacyWifiManager extends WifiManager{
     }
 
     private PrivacyOutcome getPrivacyOutcome(boolean withForceState) {
-        try {
-            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-            PrivacySettings settings = pSetMan.getSettings(context.getPackageName());
-            if (withForceState && settings != null && settings.getForceOnlineState() == PrivacySettings.REAL) {
-                return PrivacyOutcome.FORCE_ONLINE;
-            } else if (settings == null) {
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+        IPrivacySettings settings = pSetMan.getSettingsSafe(context.getPackageName());
+        if (withForceState && settings != null && settings.getForceOnlineState() == IPrivacySettings.REAL) {
+            return PrivacyOutcome.FORCE_ONLINE;
+        } else if (settings == null) {
+            return PrivacyOutcome.REAL;
+        } else {
+            switch (settings.getWifiInfoSetting()) {
+            case IPrivacySettings.REAL:
                 return PrivacyOutcome.REAL;
-            } else {
-                switch (settings.getWifiInfoSetting()) {
-                case PrivacySettings.REAL:
-                    return PrivacyOutcome.REAL;
-                case PrivacySettings.EMPTY:
-                    return PrivacyOutcome.EMPTY;
-                case PrivacySettings.CUSTOM:
-                    return PrivacyOutcome.CUSTOM;
-                case PrivacySettings.RANDOM:
-                    return PrivacyOutcome.RANDOM;
-                default:
-                    return PrivacyOutcome.ERROR;
-                }
+            case IPrivacySettings.EMPTY:
+                return PrivacyOutcome.EMPTY;
+            case IPrivacySettings.CUSTOM:
+                return PrivacyOutcome.CUSTOM;
+            case IPrivacySettings.RANDOM:
+                return PrivacyOutcome.RANDOM;
+            case IPrivacySettings.ERROR_REAL:
+                return PrivacyOutcome.ERROR_REAL;
+            default:
+                return PrivacyOutcome.ERROR_EMPTY;
             }
-        } catch (PrivacyServiceException e) {
-            return PrivacyOutcome.ERROR;
         }
     }
 
@@ -81,15 +80,11 @@ public class PrivacyWifiManager extends WifiManager{
     public List<WifiConfiguration> getConfiguredNetworks() {
         switch (getPrivacyOutcome(false)) {
         case REAL:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+        case ERROR_REAL:
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getConfiguredNetworks();
-        case ERROR:
-            if (pSetMan != null) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-            }
-            return new ArrayList<WifiConfiguration>(); //create empty list!
         default:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);
             return new ArrayList<WifiConfiguration>(); //create empty list!
         }
     }
@@ -98,15 +93,11 @@ public class PrivacyWifiManager extends WifiManager{
     public WifiInfo getConnectionInfo() {
         switch (getPrivacyOutcome(false)) {
         case REAL:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+        case ERROR_REAL:
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getConnectionInfo();
-        case ERROR:
-            if (pSetMan != null) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-            }
-            return new WifiInfo(true);
         default:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
             return new WifiInfo(true);
         }
     }
@@ -115,15 +106,11 @@ public class PrivacyWifiManager extends WifiManager{
     public List<ScanResult> getScanResults() {
         switch (getPrivacyOutcome(false)) {
         case REAL:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+        case ERROR_REAL:
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getScanResults();
-        case ERROR:
-            if (pSetMan != null) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-            }
-            return new ArrayList<ScanResult>(); //create empty list!
         default:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
             return new ArrayList<ScanResult>(); //create empty list!
         }
     }
@@ -133,15 +120,11 @@ public class PrivacyWifiManager extends WifiManager{
     public int getFrequencyBand() {
         switch (getPrivacyOutcome(false)) {
         case REAL:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+        case ERROR_REAL:
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getFrequencyBand();
-        case ERROR:
-            if (pSetMan != null) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-            }
-            return -1;
         default:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
             return -1;
         }
     }
@@ -151,17 +134,11 @@ public class PrivacyWifiManager extends WifiManager{
     public DhcpInfo getDhcpInfo() {
         switch (getPrivacyOutcome(false)) {
         case REAL:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+        case ERROR_REAL:
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getDhcpInfo();
-
-        case ERROR:
-            if (pSetMan != null) {
-                pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-            }
-            return new DhcpInfo();
-
         default:
-            pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+            pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
             return new DhcpInfo();
         }
     }
@@ -174,15 +151,11 @@ public class PrivacyWifiManager extends WifiManager{
      public WifiConfiguration getWifiApConfiguration() {
          switch (getPrivacyOutcome(false)) {
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.getWifiApConfiguration();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return new WifiConfiguration(); 
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return new WifiConfiguration();
          }
      }
@@ -192,15 +165,11 @@ public class PrivacyWifiManager extends WifiManager{
      public String getConfigFile() {
          switch (getPrivacyOutcome(false)) {
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.getConfigFile();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return "";
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return "";
          }
      }
@@ -211,15 +180,11 @@ public class PrivacyWifiManager extends WifiManager{
      public boolean startScan(){
          switch (getPrivacyOutcome(false)) {
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.startScan();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return false;
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return false;
          }
      }
@@ -229,15 +194,11 @@ public class PrivacyWifiManager extends WifiManager{
      public boolean startScanActive(){
          switch (getPrivacyOutcome(false)) {
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null); 
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.startScanActive();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return false;
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return false;
          }
      }
@@ -247,15 +208,11 @@ public class PrivacyWifiManager extends WifiManager{
      public boolean setWifiEnabled(boolean enabled){
          switch (getPrivacyOutcome(false)) {
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_SWITCH_WIFI_STATE, null); 
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_SWITCH_WIFI_STATE, null); 
              return super.setWifiEnabled(enabled);
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_SWITCH_WIFI_STATE, null);
-             }
-             return false;
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_SWITCH_WIFI_STATE, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_SWITCH_WIFI_STATE, null);  
              return false;		        
          }
      }
@@ -264,18 +221,14 @@ public class PrivacyWifiManager extends WifiManager{
      public int getWifiState(){
          switch (getPrivacyOutcome(true)) {
          case FORCE_ONLINE:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return WIFI_STATE_ENABLED;
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null);  
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null);  
              return super.getWifiState();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return WIFI_STATE_UNKNOWN;
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return WIFI_STATE_UNKNOWN;
          }
 
@@ -285,18 +238,14 @@ public class PrivacyWifiManager extends WifiManager{
      public boolean isWifiEnabled(){
          switch (getPrivacyOutcome(true)) {
          case FORCE_ONLINE:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return true;	            
          case REAL:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_WIFI_INFO, null);  
+         case ERROR_REAL:
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null);  
              return super.isWifiEnabled();
-         case ERROR:
-             if (pSetMan != null) {
-                 pSetMan.notification(context.getPackageName(), PrivacySettings.ERROR, PrivacySettings.DATA_WIFI_INFO, null);
-             }
-             return false;
          default:
-             pSetMan.notification(context.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_WIFI_INFO, null);  
+             pSetMan.notification(context.getPackageName(), IPrivacySettings.EMPTY, IPrivacySettings.DATA_WIFI_INFO, null);  
              return false;
          }
 

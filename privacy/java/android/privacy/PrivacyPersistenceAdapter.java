@@ -27,10 +27,13 @@ import android.util.Log;
 import android.util.LruCache;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,6 +65,8 @@ public final class PrivacyPersistenceAdapter {
     static final String DATABASE_FILE = "/data/system/privacy.db";
     static final String DATABASE_JOURNAL_FILE = "/data/system/privacy.db-journal";
 
+    static final String ACTION_ON_ERROR_SETTING = "onerror";
+
     private static final int DATABASE_VERSION = 4;
     private static final boolean LOG_LOCKING = false;
     private static final boolean LOG_OPEN_AND_CLOSE = true;
@@ -90,7 +95,8 @@ public final class PrivacyPersistenceAdapter {
     private ConfigMonitor mConfigMonitor;
 
     //By using the same locks for the database and the cache, we can separate read and write locks without extra synchronization 
-    private static final HashMap<String, PrivacySettings> sCache = new HashMap<String, PrivacySettings>();
+    private static final Map<String, PrivacySettings> sCache = new HashMap<String, PrivacySettings>();
+    private static final Map<String, String> sGlobalSettingsCache = new HashMap<String, String>();
 
     private static final String TABLE_SETTINGS = "settings";
     private static final String TABLE_MAP = "map";
@@ -549,7 +555,10 @@ public final class PrivacyPersistenceAdapter {
                             entry.getValue().setAllowedContacts(allowedContacts);
                         }
                     }
-                }   
+                }
+                
+                sGlobalSettingsCache.clear();
+                sGlobalSettingsCache.putAll(readExternalSettings(null));
             } catch (Exception e) {
                 PrivacyDebugger.e(TAG, "fillCache: Exception occurred while getting settings", e);
             } finally {
@@ -992,7 +1001,7 @@ public final class PrivacyPersistenceAdapter {
      * @throws Exception
      *             if we cannot write settings to directory
      */
-    private boolean writeExternalSetting(Map<String, String> settings, String packageName)
+    private boolean writeExternalSettings(Map<String, String> settings, String packageName)
             throws Exception {
         // save settings to plain text file (for access from core libraries)
         File settingsFolder;
@@ -1001,8 +1010,6 @@ public final class PrivacyPersistenceAdapter {
         } else {
             settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
         }
-        
-        boolean result = false;
 
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
         sLock.writeLock().lock();
@@ -1016,7 +1023,7 @@ public final class PrivacyPersistenceAdapter {
             
             File settingFile;
             for (Entry<String, String> entry : settings.entrySet()) {
-                settingFile = new File(settingsettingsFolder.getAbsolutePath() + File.separator + entry.getKey());
+                settingFile = new File(settingsFolder.getAbsolutePath() + File.separator + entry.getKey());
                 if (!settingFile.exists()) {
                     settingFile.createNewFile();
                     settingFile.setReadable(true, false);
@@ -1027,6 +1034,7 @@ public final class PrivacyPersistenceAdapter {
                 writer.append(entry.getValue());
                 writer.flush();
                 writer.close();
+                sGlobalSettingsCache.put(entry.getKey(), entry.getValue());
             }
         } catch (IOException e) {
             // jump to catch block to avoid marking transaction as successful
@@ -1039,7 +1047,158 @@ public final class PrivacyPersistenceAdapter {
 
         return true;
     }
+
+    /**
+     * This method creates external settings files for access from core libraries
+     * 
+     * @param settings
+     *            Map of setting names and values: setting name is used as filename, and value as content
+     * @param packageName
+     *            name of package, or null if global setting
+     * @return true if file was successful written
+     * @throws Exception
+     *             if we cannot write settings to directory
+     */
+    private boolean writeExternalSetting(String setting, String value, String packageName)
+            throws Exception {
+        // save settings to plain text file (for access from core libraries)
+        File settingsFolder;
+        if (packageName == null) {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
+        } else {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+        }
+
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
+        sLock.writeLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)lock");
+        try {
+            if (!settingsFolder.exists()) {
+                settingsFolder.mkdirs();
+                settingsFolder.setReadable(true, false);
+                settingsFolder.setExecutable(true, false);
+            }
+            
+            File settingFile = new File(settingsFolder.getAbsolutePath() + File.separator + setting);
+            if (!settingFile.exists()) {
+                settingFile.createNewFile();
+                settingFile.setReadable(true, false);
+                settingFile.setExecutable(true, false);
+            }
+            OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(
+                    settingFile));
+            writer.append(value);
+            writer.flush();
+            writer.close();
+            if (packageName == null) {
+                sGlobalSettingsCache.put(setting, value);
+            }
+        } catch (IOException e) {
+            // jump to catch block to avoid marking transaction as successful
+            throw new Exception("writeExternalFile - could not write settings to file", e);
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)unlock");
+            sLock.writeLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)unlock");
+        }
+
+        return true;
+    }
+
+    private boolean deleteExternalSetting(String setting, String packageName)
+            throws Exception {
+        // save settings to plain text file (for access from core libraries)
+        File settingsFolder;
+        if (packageName == null) {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
+        } else {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+        }
+        
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:deleteExternalSetting: WriteLock: (pre)lock");
+        sLock.writeLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:deleteExternalSetting: WriteLock: (post)lock");
+        try {            
+            if (!settingsFolder.exists()) {
+                // if the settings folder is missing, we don't need to delete anything
+                return true;
+            }
+            
+            File settingFile = new File(settingsFolder.getAbsolutePath() + File.separator + setting);
+            if (!settingFile.exists()) {
+                // if the file doesn't exist, don't need to delete anything
+                return true;
+            }            
+            settingFile.delete();
+            
+            if (packageName == null && sGlobalSettingsCache.containsKey(setting)) {
+                sGlobalSettingsCache.remove(setting);
+            }
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)unlock");
+            sLock.writeLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)unlock");
+        }
+
+        return false;
+    }
     
+    /**
+     * Read the content of all external settings files for a single package (or global settings)
+     * @param packageName  Package name if reading settings for a package, or null to read global settings
+     * @return  Map of setting names and values
+     * @throws Exception If any exception occurs
+     */
+    private Map<String, String> readExternalSettings(String packageName)
+            throws Exception {
+        // save settings to plain text file (for access from core libraries)
+        File settingsFolder;
+        if (packageName == null) {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
+        } else {
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+        }
+        
+        Map<String, String> settings = null;
+
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
+        sLock.readLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)lock");
+        try {
+            if (!settingsFolder.exists()) {
+                return null;
+            }
+            
+            settings = new HashMap<String, String>();
+            StringWriter writer;
+            
+            for (File settingFile : settingsFolder.listFiles()) {
+                if (!settingFile.isDirectory()) {
+                    InputStreamReader reader = new InputStreamReader(new FileInputStream(settingFile));
+                    try {
+                        writer = new StringWriter();
+                        char[] buffer = new char[1024];
+                        int count;
+                        while ((count = reader.read(buffer)) != -1) {
+                            writer.write(buffer, 0, count);
+                        }
+                        settings.put(settingFile.getName(), writer.toString());
+                    } finally {
+                        reader.close();
+                    }
+                }
+            }
+            
+            return settings;
+        } catch (IOException e) {
+            // jump to catch block to avoid marking transaction as successful
+            throw new Exception("writeExternalFile - could not write settings to file", e);
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)unlock");
+            sLock.readLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (post)unlock");
+        }
+    }
     
     /**
      * This method creates external settings files for access from core libraries
@@ -1056,10 +1215,10 @@ public final class PrivacyPersistenceAdapter {
      */
     private boolean writeExternalPackageSettings(PrivacySettings s)
             throws Exception {
-        Map settingMap = new HashMap<String, String>();
+        Map<String, String> settingMap = new HashMap<String, String>();
         settingMap.put("systemLogsSetting", s.getSystemLogsSetting() + "");
         settingMap.put("ipTableProtectSetting", s.getIpTableProtectSetting() + "");
-        return writeExternalSetting(settingMap, s.getPackageName());
+        return writeExternalSettings(settingMap, s.getPackageName());
     }
 
     /**
@@ -1300,7 +1459,56 @@ public final class PrivacyPersistenceAdapter {
         return result;
     }
 
+    public String getGlobalSetting(String setting) {
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getGlobalSetting: ReadLock: (pre)lock");
+        sLock.readLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getGlobalSetting: ReadLock: (post)lock");
+        String settingValue = null;
+        
+        try {
+            if (sGlobalSettingsCache.containsKey(setting)) {
+                settingValue = sGlobalSettingsCache.get(setting);
+            }
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getGlobalSetting: ReadLock: (pre)unlock");
+            sLock.readLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getGlobalSetting: ReadLock: (post)unlock");
+        }
+        return settingValue;
+    }
 
+    public boolean setGlobalSetting(String setting, String value) {
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (pre)lock");
+        sLock.writeLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (post)lock");
+        try {
+            return writeExternalSetting(setting, value, null);
+        } catch (Exception e) {
+            PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: failed to write external setting: " + setting + ", " + value);
+            return false;
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (pre)unlock");
+            sLock.writeLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (post)unlock");
+        }
+    }
+
+    public boolean deleteGlobalSetting(String setting) {
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (pre)lock");
+        sLock.writeLock().lock();
+        if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (post)lock");
+        try {
+            return deleteExternalSetting(setting, null);
+        } catch (Exception e) {
+            PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:deleteGlobalSetting: failed to delete external setting: " + setting);
+            return false;
+        } finally {
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (pre)unlock");
+            sLock.writeLock().unlock();
+            if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:setGlobalSetting: WriteLock: (post)unlock");
+        }
+    }
+    
     private boolean deleteRecursive(File fileOrDirectory) throws FileNotFoundException {
         boolean result;
         if (!fileOrDirectory.exists()) throw new FileNotFoundException(fileOrDirectory.getAbsolutePath());
