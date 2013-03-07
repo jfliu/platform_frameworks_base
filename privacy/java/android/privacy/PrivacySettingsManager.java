@@ -22,16 +22,9 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 import android.content.Context;
+import android.content.Intent;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.privacy.IPrivacySettingsManager;
-import android.privacy.PrivacyPersistenceAdapter;
-import android.privacy.PrivacyServiceDisconnectedException;
-import android.privacy.PrivacyServiceInvalidException;
-import android.privacy.PrivacySettingsAllow;
-import android.privacy.PrivacySettingsDeny;
-import android.privacy.PrivacySettingsManager;
-import android.privacy.PrivacySettingsManagerService;
 import android.privacy.utilities.PrivacyDebugger;
 
 /**
@@ -79,16 +72,19 @@ public final class PrivacySettingsManager {
         this.service = service;
     }
     
+    
     @Deprecated
     public IPrivacySettings getSettings(String packageName, int uid)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         return getSettings(packageName);
     }
     
+    
     public IPrivacySettings getSettingsSafe(String packageName) {
         try {
             return getSettings(packageName);
         } catch (PrivacyServiceException e) {
+            PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettingsSafe: Exception occured obtaining settings - resorting to onError object", e);
             return getOnErrorObject(packageName);
         }
     }
@@ -97,7 +93,13 @@ public final class PrivacySettingsManager {
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
         try {
-            return service.getSettings(packageName);
+            IPrivacySettings settings = service.getSettings(packageName);
+            // Providing the 'default' settings should be in the service itself, but I have it here until I work out a good implementation approach
+            if (settings == null) {
+                return new PrivacySettingsDefaultAllow();
+            } else {
+                return settings;
+            }
         } catch (RemoteException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettings: Exception occurred in the remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the remote privacy service", e);
@@ -419,14 +421,14 @@ public final class PrivacySettingsManager {
         try {
             onErrorSetting = readExternalSetting(PrivacyPersistenceAdapter.ACTION_ON_ERROR_SETTING);
             if (onErrorSetting.equals("allow")) {
-                return new PrivacySettingsAllow();
+                return new PrivacySettingsErrorAllow();
             } else {
-                return new PrivacySettingsDeny();
+                return new PrivacySettingsErrorDeny();
             }
         } catch (Exception e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:getOnErrorObject: exception occurred getting on error setting", e);
-            return new PrivacySettingsDeny(); 
-        }        
+            return new PrivacySettingsErrorDeny(); 
+        }
     }
     
     private String readExternalSetting(String setting) throws IOException, FileNotFoundException {

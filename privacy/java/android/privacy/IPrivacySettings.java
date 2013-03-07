@@ -68,6 +68,12 @@ public interface IPrivacySettings  {
      */
     public static final byte ERROR_REAL = 5;
 
+    /**
+     * Default for when there are no settings: allow all
+     */
+    public static final byte DEFAULT_REAL = 6;
+
+    
     
     public static final byte SETTING_NOTIFY_OFF = 0;
     public static final byte SETTING_NOTIFY_ON = 1;

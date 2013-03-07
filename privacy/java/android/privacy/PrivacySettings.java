@@ -903,6 +903,7 @@ public final class PrivacySettings implements IPrivacySettings, Parcelable {
     public static byte getOutcome(byte setting) {
         switch (setting) {
         case ERROR_REAL:
+        case DEFAULT_REAL:
             return REAL;
         case ERROR_EMPTY:
             return EMPTY;

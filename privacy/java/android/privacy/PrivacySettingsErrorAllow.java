@@ -27,7 +27,7 @@ import java.util.Random;
  * @author Stefan Thiele (CollegeDev)
  * {@hide} 
  */
-public final class PrivacySettingsAllow implements IPrivacySettings {
+public final class PrivacySettingsErrorAllow implements IPrivacySettings {
 
     @Override
     public byte getSwitchWifiStateSetting() {

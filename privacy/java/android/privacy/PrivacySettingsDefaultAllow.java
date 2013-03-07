@@ -27,31 +27,31 @@ import java.util.Random;
  * @author Stefan Thiele (CollegeDev)
  * {@hide} 
  */
-public final class PrivacySettingsDeny implements IPrivacySettings {
+public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getSwitchWifiStateSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getForceOnlineState() {
-        return ERROR_REAL;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSendMmsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSwitchConnectivitySetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getAndroidIdSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     /**
@@ -64,47 +64,47 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getWifiInfoSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getIpTableProtectSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getIccAccessSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getAddOnManagementSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSmsSendSetting(){
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getPhoneCallSetting(){
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getRecordAudioSetting(){
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getCameraSetting(){
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getDeviceIdSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -114,7 +114,7 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getLine1NumberSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -124,7 +124,7 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getLocationGpsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -139,7 +139,7 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getLocationNetworkSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -154,17 +154,17 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getNetworkInfoSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSimInfoSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSimSerialNumberSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -174,7 +174,7 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getSubscriberIdSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
@@ -184,62 +184,62 @@ public final class PrivacySettingsDeny implements IPrivacySettings {
 
     @Override
     public byte getAccountsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getAccountsAuthTokensSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getOutgoingCallsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getIncomingCallsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getContactsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getCalendarSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getMmsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSmsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getCallLogSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getBookmarksSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getSystemLogsSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
     public byte getIntentBootCompletedSetting() {
-        return ERROR_EMPTY;
+        return DEFAULT_REAL;
     }
 
     @Override
