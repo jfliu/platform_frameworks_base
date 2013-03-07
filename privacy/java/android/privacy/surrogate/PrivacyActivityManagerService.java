@@ -132,7 +132,7 @@ public final class PrivacyActivityManagerService {
                 } else if (tmpInHash == hashCode(intent)) {
                     output = tmpIn.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
                     intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, output);
-                    pSetMan.notification(packageName, pSet.getIncomingCallsSetting(), IPrivacySettings.DATA_INCOMING_CALL, null);
+                    pSetMan.notification(packageName, PrivacySettings.REAL, IPrivacySettings.DATA_INCOMING_CALL, null);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "failed to enforce intent broadcast permission", e);

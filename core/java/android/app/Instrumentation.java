@@ -1565,7 +1565,7 @@ public class Instrumentation {
                 if (privacySettings == null) {
                     Log.d(TAG,"Privacy:Instrumentation:execStartActivitiesAsUser: Call intents allowed: No settings for package: " + who.getPackageName());
                     allowCallIntents = true;
-                    mPrvSvc.notification(who.getPackageName(), PrivacySettings.EMPTY, PrivacySettings.DATA_PHONE_CALL, null);
+                    mPrvSvc.notification(who.getPackageName(), PrivacySettings.REAL, PrivacySettings.DATA_PHONE_CALL, null);
                 } else if (PrivacySettings.getOutcome(privacySettings.getPhoneCallSetting()) == PrivacySettings.REAL) {
                     Log.d(TAG,"Privacy:Instrumentation:execStartActivitiesAsUser: Call intents allowed: Settings permit " + who.getPackageName());
                     allowCallIntents = true;
