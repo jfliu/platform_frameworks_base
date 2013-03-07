@@ -194,12 +194,6 @@ public final class MicrophoneInputStream extends InputStream {
                 pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
             }
             break;
-        case GOT_ERROR:
-            dataAccess(false);
-            if(packageName != null && pSetMan != null) {
-                pSetMan.notification(packageName[0], PrivacySettings.ERROR, PrivacySettings.DATA_RECORD_AUDIO, null);
-            }
-            throw new IOException("AudioRecord constructor failed - busy?");
         default:
             dataAccess(false);
             if(packageName != null && pSetMan != null) {

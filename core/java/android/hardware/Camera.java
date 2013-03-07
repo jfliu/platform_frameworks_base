@@ -938,13 +938,6 @@ public class Camera {
     	                pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null);
     	            }
     	            break;
-    	        case GOT_ERROR:
-    	            access = false;
-    	            dataAccess(false);
-    	            if(packageName != null && pSetMan != null) {
-    	                pSetMan.notification(packageName[0], PrivacySettings.ERROR, PrivacySettings.DATA_CAMERA, null);
-    	            }
-    	            break;
     	        default:
     	            access = false;
     	            dataAccess(false);
