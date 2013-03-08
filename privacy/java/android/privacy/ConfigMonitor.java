@@ -36,7 +36,9 @@ final class ConfigMonitor {
 	private static final int ID_DATABASE_JOURNAL_MONITOR = 1;
 	private static final int ID_SETTINGS_MONITOR = 2;
 	
-	private static final int MONITOR_DELAY = 2000; // Delay before starting watching when triggered, and delay before 
+	private static final int MONITOR_DELAY = 2000; // Delay before starting watching when triggered, and delay before
+	// A better way of handling this delay might be to have an "I'm done now" file which is touched after all other file changes: that way, variable delay
+	// is better accommodated
 	
 	private ConfigMonitorCallback mCallback;
 	
@@ -99,31 +101,37 @@ final class ConfigMonitor {
 	    PrivacyDebugger.i(TAG,"Starting monitors");
 	    if (mDatabaseMonitor == null) {
 	        mDatabaseMonitor = new Monitor(DATABASE_FILE, ID_DATABASE_MONITOR);
+	        //mDatabaseMonitor.startWatching();
 	    }
 	    if (mJournalMonitor == null) {
 	        mJournalMonitor = new Monitor(DATABASE_JOURNAL_FILE, ID_DATABASE_JOURNAL_MONITOR);
+	        //mJournalMonitor.startWatching();
 	    }
 	    if (mFolderMonitor == null) {
 	        mFolderMonitor = new Monitor(SETTINGS_DIRECTORY, ID_SETTINGS_MONITOR);
+	        //mFolderMonitor.startWatching();
 	    }
 
 	    // Need to delay the start-up of folder monitors due to delays in inotify notifications being received (or I think that's the issue)
         (new Thread() {
             public void run() {
+                PrivacyDebugger.d(TAG, "Initiating delay on listeners watching");
                 try {
                     sleep(MONITOR_DELAY);
                 } catch (Exception e) {
+                    PrivacyDebugger.e(TAG, "Excepting during monitor delay");
                 } finally {
-                    if (mDatabaseMonitor == null) {
+                    if (mDatabaseMonitor != null) {
                         mDatabaseMonitor.startWatching();
                     }
-                    if (mJournalMonitor == null) {
+                    if (mJournalMonitor != null) {
                         mJournalMonitor.startWatching();
                     }
                     // Need to delay the start-up of folder monitors due to delays in inotify notifications
-                    if (mFolderMonitor == null) {
+                    if (mFolderMonitor != null) {
                         mFolderMonitor.startWatching();
                     }
+                    PrivacyDebugger.d(TAG, "Listeners started");
                 }
             }
         }).start();
@@ -293,6 +301,7 @@ final class ConfigMonitor {
 	 */
 	synchronized void endAuthorizedTransaction() {
 	    PrivacyDebugger.i(TAG,"endAuthorizedTransaction");
+	    //authorizedWritesInProgress--;
 	    (new Thread() {
 	        public void run() {
 	            try {

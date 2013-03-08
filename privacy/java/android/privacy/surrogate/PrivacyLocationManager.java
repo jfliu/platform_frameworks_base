@@ -25,7 +25,6 @@ import android.os.Binder;
 import android.os.Looper;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
-import android.privacy.PrivacyServiceException;
 import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
@@ -39,15 +38,15 @@ import android.util.Log;
 public final class PrivacyLocationManager extends LocationManager {
 
     private static final String TAG = "PrivacyLocationManager";
-    
+
     private static final int CUSTOM_LOCATION_UPDATE_COUNT = 5;
-    
+
     private Context context;
-    
+
     private PrivacySettingsManager pSetMan;
-    
+
     private Object lock = new Object();
-    
+
     /** {@hide} */
     public PrivacyLocationManager(ILocationManager service, Context context) {
         super(context, service);
@@ -64,95 +63,95 @@ public final class PrivacyLocationManager extends LocationManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
 
         if (pSet == null || PrivacySettings.getOutcome(pSet.getLocationGpsSetting()) == IPrivacySettings.REAL) {
-            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_GPS, null);
         } else {
             pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);
             return false;
-        }       
-        
+        }
+
         return super.addNmeaListener(listener);
     }
 
     @Override
     public Location getLastKnownLocation(String provider) {
         if (provider == null) return super.getLastKnownLocation(provider);
-        
+
         String packageName = context.getPackageName();
         Location output = null;
 
-            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-            IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-            
-            if (pSet != null) {
-                if (provider.equals(LocationManager.GPS_PROVIDER)) {
-                    switch (PrivacySettings.getOutcome(pSet.getLocationGpsSetting())) {
-                        case IPrivacySettings.REAL:
-                            output = super.getLastKnownLocation(provider);
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                                    (output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null));
-                            break;
-                        case IPrivacySettings.EMPTY:
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);
-                            break;
-                        case IPrivacySettings.CUSTOM:
-                            output = new Location(provider);
-                            output.setLatitude(Double.parseDouble(pSet.getLocationGpsLat()));
-                            output.setLongitude(Double.parseDouble(pSet.getLocationGpsLon()));
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                                    "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
-                            break;
-                        case IPrivacySettings.RANDOM:
-                            output = new Location(provider);
-                            output.setLatitude(Double.parseDouble(pSet.getLocationGpsLat()));
-                            output.setLongitude(Double.parseDouble(pSet.getLocationGpsLon()));
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                                    "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
-                            break;
-                    }
-                } else if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
-                    switch (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting())) {
-                        case IPrivacySettings.REAL:
-                            output = super.getLastKnownLocation(provider);
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
-                                    output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
-                            break;
-                        case IPrivacySettings.EMPTY:
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);
-                            break;
-                        case IPrivacySettings.CUSTOM:
-                            output = new Location(provider);
-                            output.setLatitude(Double.parseDouble(pSet.getLocationNetworkLat()));
-                            output.setLongitude(Double.parseDouble(pSet.getLocationNetworkLon()));
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
-                                    "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
-                            break;
-                        case IPrivacySettings.RANDOM:
-                            output = new Location(provider);
-                            output.setLatitude(Double.parseDouble(pSet.getLocationNetworkLat()));
-                            output.setLongitude(Double.parseDouble(pSet.getLocationNetworkLon()));
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
-                                    "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
-                            break;
-                    }
-                } else if (provider.equals(LocationManager.PASSIVE_PROVIDER) && 
-                        PrivacySettings.getOutcome(pSet.getLocationGpsSetting()) == IPrivacySettings.REAL 
-                                && PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.REAL) {
-                    // only output real location if both gps and network are allowed
+        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
+        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+
+        if (pSet != null) {
+            if (provider.equals(LocationManager.GPS_PROVIDER)) {
+                switch (PrivacySettings.getOutcome(pSet.getLocationGpsSetting())) {
+                case IPrivacySettings.REAL:
                     output = super.getLastKnownLocation(provider);
-                    pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                            output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
+                    pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
+                            (output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null));
+                    break;
+                case IPrivacySettings.EMPTY:
+                    pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);
+                    break;
+                case IPrivacySettings.CUSTOM:
+                    output = new Location(provider);
+                    output.setLatitude(Double.parseDouble(pSet.getLocationGpsLat()));
+                    output.setLongitude(Double.parseDouble(pSet.getLocationGpsLon()));
+                    pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
+                            "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
+                    break;
+                case IPrivacySettings.RANDOM:
+                    output = new Location(provider);
+                    output.setLatitude(Double.parseDouble(pSet.getLocationGpsLat()));
+                    output.setLongitude(Double.parseDouble(pSet.getLocationGpsLon()));
+                    pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
+                            "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
+                    break;
                 }
-            } else {
+            } else if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
+                switch (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting())) {
+                case IPrivacySettings.REAL:
+                    output = super.getLastKnownLocation(provider);
+                    pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
+                            output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
+                    break;
+                case IPrivacySettings.EMPTY:
+                    pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);
+                    break;
+                case IPrivacySettings.CUSTOM:
+                    output = new Location(provider);
+                    output.setLatitude(Double.parseDouble(pSet.getLocationNetworkLat()));
+                    output.setLongitude(Double.parseDouble(pSet.getLocationNetworkLon()));
+                    pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
+                            "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
+                    break;
+                case IPrivacySettings.RANDOM:
+                    output = new Location(provider);
+                    output.setLatitude(Double.parseDouble(pSet.getLocationNetworkLat()));
+                    output.setLongitude(Double.parseDouble(pSet.getLocationNetworkLon()));
+                    pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
+                            "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude());
+                    break;
+                }
+            } else if (provider.equals(LocationManager.PASSIVE_PROVIDER) && 
+                    PrivacySettings.getOutcome(pSet.getLocationGpsSetting()) == IPrivacySettings.REAL 
+                    && PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.REAL) {
+                // only output real location if both gps and network are allowed
                 output = super.getLastKnownLocation(provider);
-                if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
-                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_NETWORK, 
+                pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
                         output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
-                } else { // including GPS and passive providers
-                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_GPS, 
-                            output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
-                }
             }
-        
+        } else {
+            output = super.getLastKnownLocation(provider);
+            if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
+                pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_NETWORK, 
+                        output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
+            } else { // including GPS and passive providers
+                pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_GPS, 
+                        output != null ? "Lat: " + output.getLatitude() + " Lon: " + output.getLongitude() : null);
+            }
+        }
+
         return output;
     }
 
@@ -195,42 +194,42 @@ public final class PrivacyLocationManager extends LocationManager {
         } else {
             output = super.getProvider(name);
         }
-            
+
         return output;
     }
 
     @Override
     public boolean isProviderEnabled(String provider) {
         if (provider == null) return super.isProviderEnabled(provider);
-        
+
         boolean output = false;
         if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
         IPrivacySettings pSet = pSetMan.getSettingsSafe(context.getPackageName());
-    
+
         if (pSet != null) {
             if (provider.equals(LocationManager.GPS_PROVIDER)) {
                 switch (PrivacySettings.getOutcome(pSet.getLocationGpsSetting())) {
-                    case IPrivacySettings.REAL:
-                        output = super.isProviderEnabled(provider);
-                        break;
-                    case IPrivacySettings.EMPTY:
-                        break;
-                    case IPrivacySettings.CUSTOM:
-                    case IPrivacySettings.RANDOM:
-                        output = true;
-                        break;
+                case IPrivacySettings.REAL:
+                    output = super.isProviderEnabled(provider);
+                    break;
+                case IPrivacySettings.EMPTY:
+                    break;
+                case IPrivacySettings.CUSTOM:
+                case IPrivacySettings.RANDOM:
+                    output = true;
+                    break;
                 }
             } else if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
                 switch (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting())) {
-                    case IPrivacySettings.REAL:
-                        output = super.isProviderEnabled(provider);
-                        break;
-                    case IPrivacySettings.EMPTY:
-                        break;
-                    case IPrivacySettings.CUSTOM:
-                    case IPrivacySettings.RANDOM:
-                        output = true;
-                        break;
+                case IPrivacySettings.REAL:
+                    output = super.isProviderEnabled(provider);
+                    break;
+                case IPrivacySettings.EMPTY:
+                    break;
+                case IPrivacySettings.CUSTOM:
+                case IPrivacySettings.RANDOM:
+                    output = true;
+                    break;
                 }
             } else if (provider.equals(LocationManager.PASSIVE_PROVIDER)) { // could get location from any of above
                 if (PrivacySettings.getOutcome(pSet.getLocationGpsSetting()) == IPrivacySettings.REAL || 
@@ -338,15 +337,15 @@ public final class PrivacyLocationManager extends LocationManager {
         if (requestLocationUpdates(provider, null, intent)) return;
         super.requestSingleUpdate(provider, intent);
     }
-    
+
     /**
      * Monitoring purposes only
      */
-//    @Override
-//    public boolean sendExtraCommand(String provider, String command, Bundle extras) {
-//        Log.d(TAG, "sendExtraCommand - " + context.getPackageName() + " (" + Binder.getCallingUid() + ")");
-//        return super.sendExtraCommand(provider, command, extras);
-//    }
+    //    @Override
+    //    public boolean sendExtraCommand(String provider, String command, Bundle extras) {
+    //        Log.d(TAG, "sendExtraCommand - " + context.getPackageName() + " (" + Binder.getCallingUid() + ")");
+    //        return super.sendExtraCommand(provider, command, extras);
+    //    }
 
     /**
      * Handles calls to requestLocationUpdates and requestSingleUpdate methods
@@ -361,81 +360,81 @@ public final class PrivacyLocationManager extends LocationManager {
 
             if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
             IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-            
+
             if (pSet != null) {
                 if (provider.equals(LocationManager.GPS_PROVIDER)) {
                     switch (PrivacySettings.getOutcome(pSet.getLocationGpsSetting())) {
-                        case IPrivacySettings.REAL:
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);                            
-                            break;
-                        case IPrivacySettings.EMPTY:
-                            if (intent != null) intent.cancel();
+                    case IPrivacySettings.REAL:
+                        pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);                            
+                        break;
+                    case IPrivacySettings.EMPTY:
+                        if (intent != null) intent.cancel();
+                        output = true;
+                        pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);                            
+                        break;
+                    case IPrivacySettings.CUSTOM:
+                        try {
+                            new PrivacyLocationUpdater(provider, listener, intent, 
+                                    Double.parseDouble(pSet.getLocationGpsLat()), 
+                                    Double.parseDouble(pSet.getLocationGpsLon())).start();
                             output = true;
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, null);                            
-                            break;
-                        case IPrivacySettings.CUSTOM:
-                            try {
-                                new PrivacyLocationUpdater(provider, listener, intent, 
-                                        Double.parseDouble(pSet.getLocationGpsLat()), 
-                                        Double.parseDouble(pSet.getLocationGpsLon())).start();
-                                output = true;
-                            } catch (NumberFormatException e) {
-                                Log.e(TAG, "requestLocationUpdates: invalid coordinates");
-                                output = true;
-                            }
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                                    "Lat: " + pSet.getLocationGpsLat() + " Lon: " + pSet.getLocationGpsLon());
-                            break;
-                        case IPrivacySettings.RANDOM:
-                            try {
-                                new PrivacyLocationUpdater(provider, listener, intent, 
-                                        Double.parseDouble(pSet.getLocationGpsLat()), 
-                                        Double.parseDouble(pSet.getLocationGpsLon())).start();
-                                output = true;
-                            } catch (NumberFormatException e) {
-                                Log.e(TAG, "requestLocationUpdates: invalid coordinates");
-                                output = true;
-                            }
-                            pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
-                                    "Lat: " + pSet.getLocationGpsLat() + " Lon: " + pSet.getLocationGpsLon());
-                            break;
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            output = true;
+                        }
+                        pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
+                                "Lat: " + pSet.getLocationGpsLat() + " Lon: " + pSet.getLocationGpsLon());
+                        break;
+                    case IPrivacySettings.RANDOM:
+                        try {
+                            new PrivacyLocationUpdater(provider, listener, intent, 
+                                    Double.parseDouble(pSet.getLocationGpsLat()), 
+                                    Double.parseDouble(pSet.getLocationGpsLon())).start();
+                            output = true;
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            output = true;
+                        }
+                        pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
+                                "Lat: " + pSet.getLocationGpsLat() + " Lon: " + pSet.getLocationGpsLon());
+                        break;
                     }
                 } else if (provider.equals(LocationManager.NETWORK_PROVIDER)) {
                     switch (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting())) {
-                        case IPrivacySettings.REAL:
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);                            
-                            break;
-                        case IPrivacySettings.EMPTY:
-                            if (intent != null) intent.cancel();
+                    case IPrivacySettings.REAL:
+                        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);                            
+                        break;
+                    case IPrivacySettings.EMPTY:
+                        if (intent != null) intent.cancel();
+                        output = true;
+                        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);                            
+                        break;
+                    case IPrivacySettings.CUSTOM:
+                        try {
+                            new PrivacyLocationUpdater(provider, listener, intent, 
+                                    Double.parseDouble(pSet.getLocationNetworkLat()), 
+                                    Double.parseDouble(pSet.getLocationNetworkLon())).start();
                             output = true;
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);                            
-                            break;
-                        case IPrivacySettings.CUSTOM:
-                            try {
-                                new PrivacyLocationUpdater(provider, listener, intent, 
-                                        Double.parseDouble(pSet.getLocationNetworkLat()), 
-                                        Double.parseDouble(pSet.getLocationNetworkLon())).start();
-                                output = true;
-                            } catch (NumberFormatException e) {
-                                Log.e(TAG, "requestLocationUpdates: invalid coordinates");
-                                output = true;
-                            }
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
-                                    "Lat: " + pSet.getLocationNetworkLat() + " Lon: " + pSet.getLocationNetworkLon());
-                            break;
-                        case IPrivacySettings.RANDOM:
-                            try {
-                                new PrivacyLocationUpdater(provider, listener, intent, 
-                                        Double.parseDouble(pSet.getLocationNetworkLat()), 
-                                        Double.parseDouble(pSet.getLocationNetworkLon())).start();
-                                output = true;
-                            } catch (NumberFormatException e) {
-                                Log.e(TAG, "requestLocationUpdates: invalid coordinates");
-                                output = true;
-                            }
-                            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
-                                    "Lat: " + pSet.getLocationNetworkLat() + " Lon: " + pSet.getLocationNetworkLon());
-                            break;
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            output = true;
+                        }
+                        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
+                                "Lat: " + pSet.getLocationNetworkLat() + " Lon: " + pSet.getLocationNetworkLon());
+                        break;
+                    case IPrivacySettings.RANDOM:
+                        try {
+                            new PrivacyLocationUpdater(provider, listener, intent, 
+                                    Double.parseDouble(pSet.getLocationNetworkLat()), 
+                                    Double.parseDouble(pSet.getLocationNetworkLon())).start();
+                            output = true;
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            output = true;
+                        }
+                        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
+                                "Lat: " + pSet.getLocationNetworkLat() + " Lon: " + pSet.getLocationNetworkLon());
+                        break;
                     }
                 } else if (provider.equals(LocationManager.PASSIVE_PROVIDER)) { // could get location from any of above
                     if (PrivacySettings.getOutcome(pSet.getLocationGpsSetting()) == IPrivacySettings.REAL && 
@@ -458,7 +457,7 @@ public final class PrivacyLocationManager extends LocationManager {
             return output;
         }
     }
-    
+
     /**
      * Helper method for categorizing the different requestLocationUpdates calls by
      * provider accuracy and handing them off to 
@@ -470,7 +469,7 @@ public final class PrivacyLocationManager extends LocationManager {
      */
     private boolean requestLocationUpdates(Criteria criteria, LocationListener listener, PendingIntent intent) {
         if (criteria == null) return false;
-            // treat providers with high accuracy as GPS providers
+        // treat providers with high accuracy as GPS providers
         else if (criteria.getAccuracy() == Criteria.ACCURACY_FINE || 
                 criteria.getBearingAccuracy() == Criteria.ACCURACY_HIGH || 
                 criteria.getHorizontalAccuracy() == Criteria.ACCURACY_HIGH || 
@@ -481,17 +480,17 @@ public final class PrivacyLocationManager extends LocationManager {
             return requestLocationUpdates(LocationManager.NETWORK_PROVIDER, listener, intent);
         }
     }
-    
+
     private class PrivacyLocationUpdater extends Thread {
-        
+
         private String provider;
-        
+
         private LocationListener listener;
-        
+
         private PendingIntent intent;
-        
+
         private double latitude;
-        
+
         private double longitude;
 
         public PrivacyLocationUpdater(String provider, LocationListener listener, PendingIntent intent,
@@ -524,7 +523,7 @@ public final class PrivacyLocationManager extends LocationManager {
                 }
             }
         }
-        
+
     }
 
 }

@@ -73,6 +73,8 @@ public interface IPrivacySettings  {
      */
     public static final byte DEFAULT_REAL = 6;
 
+    public static final byte ERROR = 7;
+    
     
     
     public static final byte SETTING_NOTIFY_OFF = 0;

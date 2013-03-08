@@ -18,7 +18,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.RemoteException;
-import android.privacy.PrivacyServiceException;
 import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
@@ -62,7 +61,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getContactsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getContactsSetting(), IPrivacySettings.DATA_CONTACTS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CONTACTS, null);
                     } else if (PrivacySettings.getOutcome(pSet.getContactsSetting()) == IPrivacySettings.EMPTY) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -92,7 +91,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getCalendarSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getCalendarSetting(), IPrivacySettings.DATA_CALENDAR, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CALENDAR, null);
                     } else {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -103,7 +102,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getMmsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getMmsSetting(), IPrivacySettings.DATA_MMS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_MMS, null);
                     } else {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -115,7 +114,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getSmsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getSmsSetting(), IPrivacySettings.DATA_SMS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SMS, null);
                     } else {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -143,7 +142,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getCallLogSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getCallLogSetting(), IPrivacySettings.DATA_CALL_LOG, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CALL_LOG, null);
                     } else {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -155,7 +154,7 @@ public final class PrivacyContentResolver {
                     String packageName = context.getPackageName();
                     IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
                     if (pSet == null || PrivacySettings.getOutcome(pSet.getBookmarksSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, pSet.getBookmarksSetting(), IPrivacySettings.DATA_BOOKMARKS, null);
+                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_BOOKMARKS, null);
                     } else {                            
                         output_label = "[empty]";
                         output = new PrivacyCursor();
@@ -197,7 +196,7 @@ public final class PrivacyContentResolver {
                 } else  {
                     privacyAllowed = false;
                 }
-                
+
                 if (privacyAllowed) {
                     Log.i(TAG,"google is allowed to get real cursor");
                 } else {
@@ -221,7 +220,12 @@ public final class PrivacyContentResolver {
                     output_label = "[fake]";
                     output = new PrivacyCursor(realCursor,forbidden_position);
                 }
-                pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
+                if (pSet == null) {
+                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
+                } else {
+                    pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
+                }
+                
             }
             return output;
         }

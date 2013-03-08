@@ -42,7 +42,7 @@ public class PrivacyWifiManager extends WifiManager{
     private PrivacySettingsManager pSetMan;
     private static final String P_TAG = "PrivacyWifiManager";
 
-    private enum PrivacyOutcome { REAL, EMPTY, CUSTOM, RANDOM, ERROR_REAL, ERROR_EMPTY, FORCE_ONLINE };
+    private enum PrivacyOutcome { REAL, EMPTY, CUSTOM, RANDOM, ERROR_REAL, ERROR_EMPTY, DEFAULT_REAL, FORCE_ONLINE };
 
 
     public PrivacyWifiManager(Context context, IWifiManager service){
@@ -70,6 +70,8 @@ public class PrivacyWifiManager extends WifiManager{
                 return PrivacyOutcome.RANDOM;
             case IPrivacySettings.ERROR_REAL:
                 return PrivacyOutcome.ERROR_REAL;
+            case IPrivacySettings.DEFAULT_REAL:
+                return PrivacyOutcome.DEFAULT_REAL;
             default:
                 return PrivacyOutcome.ERROR_EMPTY;
             }
@@ -81,6 +83,7 @@ public class PrivacyWifiManager extends WifiManager{
         switch (getPrivacyOutcome(false)) {
         case REAL:
         case ERROR_REAL:
+        case DEFAULT_REAL:
             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getConfiguredNetworks();
         default:
@@ -94,6 +97,7 @@ public class PrivacyWifiManager extends WifiManager{
         switch (getPrivacyOutcome(false)) {
         case REAL:
         case ERROR_REAL:
+        case DEFAULT_REAL:
             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getConnectionInfo();
         default:
@@ -107,6 +111,7 @@ public class PrivacyWifiManager extends WifiManager{
         switch (getPrivacyOutcome(false)) {
         case REAL:
         case ERROR_REAL:
+        case DEFAULT_REAL:
             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getScanResults();
         default:
@@ -121,6 +126,7 @@ public class PrivacyWifiManager extends WifiManager{
         switch (getPrivacyOutcome(false)) {
         case REAL:
         case ERROR_REAL:
+        case DEFAULT_REAL:
             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getFrequencyBand();
         default:
@@ -135,6 +141,7 @@ public class PrivacyWifiManager extends WifiManager{
         switch (getPrivacyOutcome(false)) {
         case REAL:
         case ERROR_REAL:
+        case DEFAULT_REAL:
             pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
             return super.getDhcpInfo();
         default:
@@ -152,6 +159,7 @@ public class PrivacyWifiManager extends WifiManager{
          switch (getPrivacyOutcome(false)) {
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.getWifiApConfiguration();
          default:
@@ -166,6 +174,7 @@ public class PrivacyWifiManager extends WifiManager{
          switch (getPrivacyOutcome(false)) {
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.getConfigFile();
          default:
@@ -181,6 +190,7 @@ public class PrivacyWifiManager extends WifiManager{
          switch (getPrivacyOutcome(false)) {
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.startScan();
          default:
@@ -195,6 +205,7 @@ public class PrivacyWifiManager extends WifiManager{
          switch (getPrivacyOutcome(false)) {
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null); 
              return super.startScanActive();
          default:
@@ -209,6 +220,7 @@ public class PrivacyWifiManager extends WifiManager{
          switch (getPrivacyOutcome(false)) {
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_SWITCH_WIFI_STATE, null); 
              return super.setWifiEnabled(enabled);
          default:
@@ -225,6 +237,7 @@ public class PrivacyWifiManager extends WifiManager{
              return WIFI_STATE_ENABLED;
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null);  
              return super.getWifiState();
          default:
@@ -242,6 +255,7 @@ public class PrivacyWifiManager extends WifiManager{
              return true;	            
          case REAL:
          case ERROR_REAL:
+         case DEFAULT_REAL:
              pSetMan.notification(context.getPackageName(), IPrivacySettings.REAL, IPrivacySettings.DATA_WIFI_INFO, null);  
              return super.isWifiEnabled();
          default:

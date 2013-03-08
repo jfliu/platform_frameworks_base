@@ -22,7 +22,6 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.privacy.IPrivacySettingsManager;
-import android.privacy.PrivacyServiceException;
 import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
@@ -75,10 +74,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getDeviceIdSetting()) == IPrivacySettings.REAL) {
             output = super.getDeviceId();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_DEVICE_ID, output);
         } else {
             output = pSet.getDeviceId(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);
         }
-        pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);
         return output;
     }
 
@@ -93,10 +93,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) == IPrivacySettings.REAL) {
             output = super.getLine1Number();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LINE_1_NUMBER, output);
         } else {
             output = pSet.getLine1Number(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         }
-        pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         return output;
     }
 
@@ -112,10 +113,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) == IPrivacySettings.REAL) {
             output = super.getVoiceMailNumber();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LINE_1_NUMBER, output);
         } else {
             output = pSet.getLine1Number(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         }
-        pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         return output;
     }
 
@@ -179,10 +181,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         String output;
         if (pSet == null || PrivacySettings.getOutcome(pSet.getNetworkInfoSetting()) == IPrivacySettings.REAL) {
             output = null;
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
         } else {
             output = ""; // can only be empty
+            pSetMan.notification(packageName, pSet.getNetworkInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
         }
-        pSetMan.notification(packageName, pSet.getNetworkInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_CURRENT, null);            
         return output;
     }
 
@@ -221,10 +224,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         String output;
         if (pSet != null && PrivacySettings.getOutcome(pSet.getSimInfoSetting()) != IPrivacySettings.REAL) {
             output = ""; // can only be empty
+            pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
         } else {
             output = null;
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
         }
-        pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
         return output;
     }
 
@@ -239,10 +243,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getSimSerialNumberSetting()) == IPrivacySettings.REAL) {
             output = super.getSimSerialNumber();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SIM_SERIAL, output);            
         } else {
             output = pSet.getSimSerialNumber(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getSimSerialNumberSetting(), IPrivacySettings.DATA_SIM_SERIAL, output);            
         }
-        pSetMan.notification(packageName, pSet.getSimSerialNumberSetting(), IPrivacySettings.DATA_SIM_SERIAL, output);            
         return output;
     }
 
@@ -257,10 +262,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getSubscriberIdSetting()) == IPrivacySettings.REAL) {
             output = super.getSubscriberId();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SUBSCRIBER_ID, output);            
         } else {
             output = pSet.getSubscriberId(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output);            
         }
-        pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output);            
         return output;
     }
 
@@ -307,10 +313,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         CellLocation output;
         if (pSet == null || PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) == IPrivacySettings.REAL) {
             output = super.getCellLocation();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LOCATION_NETWORK, null);
         } else {
             output = null;
+            pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);
         }
-        pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, null);
         return output;
     }
 
@@ -327,10 +334,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getDeviceIdSetting()) == IPrivacySettings.REAL) {
             output = super.getDeviceSoftwareVersion();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_DEVICE_ID, output);        
         } else {
             output = pSet.getDeviceId(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);        
         }
-        pSetMan.notification(packageName, pSet.getDeviceIdSetting(), IPrivacySettings.DATA_DEVICE_ID, output);        
         return output;
     }
 
@@ -347,10 +355,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
             IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
             if (pSet != null && PrivacySettings.getOutcome(pSet.getLine1NumberSetting()) != IPrivacySettings.REAL) {
                 output = pSet.getLine1Number(); // can be empty, custom or random
+                pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_LINE_1_NUMBER, output);
             } else {
                 output = super.getCompleteVoiceMailNumber();
+                pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
             }
-            pSetMan.notification(packageName, pSet.getLine1NumberSetting(), IPrivacySettings.DATA_LINE_1_NUMBER, output);
         } catch (Exception e) {
             Log.e(TAG, "PrivacyTelphonyManager:Exception occurred", e);
             output = null;
@@ -473,10 +482,11 @@ public final class PrivacyTelephonyManager extends TelephonyManager {
         IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
         if (pSet == null || PrivacySettings.getOutcome(pSet.getSubscriberIdSetting()) == IPrivacySettings.REAL) {
             output = super.getIsimImpu();
+            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
         } else {
             output[0] = pSet.getSubscriberId(); // can be empty, custom or random
+            pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
         }
-        pSetMan.notification(packageName, pSet.getSubscriberIdSetting(), IPrivacySettings.DATA_SUBSCRIBER_ID, output[0]);            
         return output;
     }
     /**
