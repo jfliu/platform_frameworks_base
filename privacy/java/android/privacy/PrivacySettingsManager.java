@@ -74,7 +74,7 @@ public final class PrivacySettingsManager {
     
     
     @Deprecated
-    public PrivacySettings getSettings(String packageName, int uid)
+    public IPrivacySettings getSettings(String packageName, int uid)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         return getSettings(packageName);
     }
@@ -89,11 +89,10 @@ public final class PrivacySettingsManager {
         }
     }
 
-    public PrivacySettings getSettings(String packageName)
+    public IPrivacySettings getSettings(String packageName)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
         try {
-            /*
             IPrivacySettings settings = service.getSettings(packageName);
             // Providing the 'default' settings should be in the service itself, but I have it here until I work out a good implementation approach
             if (settings == null) {
@@ -101,8 +100,6 @@ public final class PrivacySettingsManager {
             } else {
                 return settings;
             }
-            */
-            return service.getSettings(packageName);
         } catch (RemoteException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettings: Exception occurred in the remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the remote privacy service", e);

@@ -28,6 +28,7 @@ import android.privacy.IPrivacySettingsManager;
 import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 import android.util.Log;
 
 /**
@@ -343,7 +344,7 @@ public final class PrivacyLocationManager extends LocationManager {
      */
     //    @Override
     //    public boolean sendExtraCommand(String provider, String command, Bundle extras) {
-    //        Log.d(TAG, "sendExtraCommand - " + context.getPackageName() + " (" + Binder.getCallingUid() + ")");
+    //        PrivacyDebugger.d(TAG, "sendExtraCommand - " + context.getPackageName() + " (" + Binder.getCallingUid() + ")");
     //        return super.sendExtraCommand(provider, command, extras);
     //    }
 
@@ -379,7 +380,7 @@ public final class PrivacyLocationManager extends LocationManager {
                                     Double.parseDouble(pSet.getLocationGpsLon())).start();
                             output = true;
                         } catch (NumberFormatException e) {
-                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            PrivacyDebugger.e(TAG, "requestLocationUpdates: invalid coordinates");
                             output = true;
                         }
                         pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
@@ -392,7 +393,7 @@ public final class PrivacyLocationManager extends LocationManager {
                                     Double.parseDouble(pSet.getLocationGpsLon())).start();
                             output = true;
                         } catch (NumberFormatException e) {
-                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            PrivacyDebugger.e(TAG, "requestLocationUpdates: invalid coordinates");
                             output = true;
                         }
                         pSetMan.notification(packageName, pSet.getLocationGpsSetting(), IPrivacySettings.DATA_LOCATION_GPS, 
@@ -416,7 +417,7 @@ public final class PrivacyLocationManager extends LocationManager {
                                     Double.parseDouble(pSet.getLocationNetworkLon())).start();
                             output = true;
                         } catch (NumberFormatException e) {
-                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            PrivacyDebugger.e(TAG, "requestLocationUpdates: invalid coordinates");
                             output = true;
                         }
                         pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 
@@ -429,7 +430,7 @@ public final class PrivacyLocationManager extends LocationManager {
                                     Double.parseDouble(pSet.getLocationNetworkLon())).start();
                             output = true;
                         } catch (NumberFormatException e) {
-                            Log.e(TAG, "requestLocationUpdates: invalid coordinates");
+                            PrivacyDebugger.e(TAG, "requestLocationUpdates: invalid coordinates");
                             output = true;
                         }
                         pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), IPrivacySettings.DATA_LOCATION_NETWORK, 

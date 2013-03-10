@@ -25,6 +25,7 @@ import android.provider.Browser;
 import android.provider.CalendarContract;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
+import android.privacy.utilities.PrivacyDebugger;
 import android.util.Log;
 
 /**
@@ -198,7 +199,7 @@ public final class PrivacyContentResolver {
                 }
 
                 if (privacyAllowed) {
-                    Log.i(TAG,"google is allowed to get real cursor");
+                    PrivacyDebugger.i(TAG,"google is allowed to get real cursor");
                 } else {
                     int actual_pos = realCursor.getPosition();
                     int forbidden_position = -1;
@@ -211,12 +212,12 @@ public final class PrivacyContentResolver {
                             }
                         }
                     } catch (Exception e){
-                        Log.e(TAG,"something went wrong while getting blocked permission for android id");
+                        PrivacyDebugger.e(TAG,"something went wrong while getting blocked permission for android id");
                     } finally{
                         realCursor.moveToPosition(actual_pos);
-                        if(forbidden_position == -1) {Log.i(TAG,"now we return real cursor, because forbidden_pos is -1"); return output;} //give realcursor, because there is no android_id to block
+                        if(forbidden_position == -1) {PrivacyDebugger.i(TAG,"now we return real cursor, because forbidden_pos is -1"); return output;} //give realcursor, because there is no android_id to block
                     }
-                    Log.i(TAG,"now blocking google access to android id and give fake cursor. forbidden_position: " + forbidden_position);
+                    PrivacyDebugger.i(TAG,"now blocking google access to android id and give fake cursor. forbidden_position: " + forbidden_position);
                     output_label = "[fake]";
                     output = new PrivacyCursor(realCursor,forbidden_position);
                 }

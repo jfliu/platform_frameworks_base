@@ -25,6 +25,7 @@ import android.privacy.IPrivacySettingsManager;
 import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
+import android.privacy.utilities.PrivacyDebugger;
 import android.util.Log;
 /**
  * Provides privacy handling for phone
@@ -43,7 +44,7 @@ public class PrivacyConnectivityManager extends ConnectivityManager{
         super(service);
         this.context = context;
         pSetMan = new PrivacySettingsManager(context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
-        Log.i(P_TAG,"now in constructor for package: " + context.getPackageName());
+        PrivacyDebugger.i(P_TAG,"now in constructor for package: " + context.getPackageName());
     }
 
     @Override
