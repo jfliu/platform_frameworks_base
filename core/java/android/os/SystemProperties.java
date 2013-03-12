@@ -69,41 +69,16 @@ public class SystemProperties
     private static final String PRIVACY_TAG = "SystemProperties";
     private static Context context;
     
-    private static PrivacySettingsManager pSetMan;
+    private static PrivacySettingsManager mPrvSvc;
     
     private static boolean privacyMode = false;
-    
-    private static IPackageManager mPm;
     
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //BEGIN PRIVACY
-    /**
-     * {@hide}
-     * @return package names of current process which is using this object or null if something went wrong
-     */
-    private static String[] getPackageName(){
-    	try{
-    		if(mPm != null){
-        		int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-        	}
-    		else{
-    			mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-    			int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-    		}
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
-    		return null;
-    	}
-    }
+
     /**
      * {@hide}
      * This method sets up all variables which are needed for privacy mode! It also writes to privacyMode, if everything was successfull or not! 
@@ -113,8 +88,7 @@ public class SystemProperties
     private static void initiate(){
     	try{
     		context = null;
-    		if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+    		if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
        	 	privacyMode = true;
     	}
     	catch(Exception e){
@@ -123,58 +97,29 @@ public class SystemProperties
     		privacyMode = false;
     	}
     }
+    	
     /**
      * {@hide}
      * This method should be used, because in some devices the uid has more than one package within!
      * @return IS_ALLOWED (-1) if all packages allowed, IS_NOT_ALLOWED(-2) if one of these packages not allowed, GOT_ERROR (-3) if something went wrong
      */
     private static int checkIfPackagesAllowed(){
-    	try{
-    		//boolean isAllowed = false;
-    		if(pSetMan != null){
-    			IPrivacySettings pSet = null;
-	    		String[] package_names = getPackageName();
-	    		if(package_names != null){
-		        	for(int i=0;i < package_names.length; i++){
-		        		pSet = pSetMan.getSettingsSafe(package_names[i]);
-		        		if(pSet != null && PrivacySettings.getOutcome(pSet.getNetworkInfoSetting()) != PrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
-		        			return IS_NOT_ALLOWED;
-		        		}
-		        		pSet = null;
-		        	}
-			    	return IS_ALLOWED;
-	    		}
-	    		else{
-	    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because package_names are NULL");
-	    			return GOT_ERROR;
-	    		}
-    		}
-    		else{
-    			Log.e(PRIVACY_TAG,"return GOT_ERROR, because pSetMan is NULL");
-    			return GOT_ERROR;
-    		}
-    	}
-    	catch (Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"Got exception in checkIfPackagesAllowed");
-    		return GOT_ERROR;
-    	}
+        try{
+            int uid = Process.myUid();
+            if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
+            IPrivacySettings pSet = null;
+            pSet = mPrvSvc.getSettingsSafe(uid);
+            if(PrivacySettings.getOutcome(pSet.getNetworkInfoSetting()) == IPrivacySettings.REAL){
+                return IS_ALLOWED;
+            } else {
+                return IS_NOT_ALLOWED;
+            }
+        } catch (Exception e){
+            Log.e(PRIVACY_TAG,"SystemProperties:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
+            return GOT_ERROR;
+        }
     }
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private static void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing networkinfo.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing networkinfo.");
-	}
-    }
+
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
 
@@ -192,10 +137,8 @@ public class SystemProperties
             key.equals(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC)     ){
 		initiate();
 		if (checkIfPackagesAllowed() == IS_NOT_ALLOWED) {
-			dataAccess(false);
 			return "";
 		}
-		dataAccess(true);
 	}
         return native_get(key);
     }
@@ -213,10 +156,8 @@ public class SystemProperties
             key.equals(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC)     ){
 		initiate();
 		if (checkIfPackagesAllowed() == IS_NOT_ALLOWED) {
-			dataAccess(false);
 			return "";
 		}
-		dataAccess(true);
 	}
         return native_get(key, def);
     }

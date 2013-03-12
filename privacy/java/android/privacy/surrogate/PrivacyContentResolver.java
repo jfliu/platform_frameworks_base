@@ -41,7 +41,7 @@ public final class PrivacyContentResolver {
     private static final String MMS_CONTENT_URI_AUTHORITY = "mms";
     private static final String MMS_SMS_CONTENT_URI_AUTHORITY = "mms-sms";
 
-    private static PrivacySettingsManager pSetMan;
+    private static PrivacySettingsManager mPrvSvc;
 
     /**
      * Returns a dummy database cursor if access is restricted by privacy settings
@@ -58,16 +58,10 @@ public final class PrivacyContentResolver {
             if (auth != null) {
                 if (auth.equals(android.provider.Contacts.AUTHORITY) || auth.equals(ContactsContract.AUTHORITY)) {
 
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getContactsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CONTACTS, null);
-                    } else if (PrivacySettings.getOutcome(pSet.getContactsSetting()) == IPrivacySettings.EMPTY) {
-                        output_label = "[empty]";
-                        output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getContactsSetting(), IPrivacySettings.DATA_CONTACTS, null);
-                    } else if (pSet.getContactsSetting() == IPrivacySettings.CUSTOM && 
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (pSet.getContactsSetting() == IPrivacySettings.CUSTOM && 
                             uri.toString().contains(ContactsContract.Contacts.CONTENT_URI.toString())) {
 
                         boolean idFound = false;
@@ -85,82 +79,74 @@ public final class PrivacyContentResolver {
                         } else {
                             output = new PrivacyCursor(output, pSet.getAllowedContacts());
                         }
-                        pSetMan.notification(packageName, pSet.getContactsSetting(), IPrivacySettings.DATA_CONTACTS, null);
+                    } else if (PrivacySettings.getOutcome(pSet.getContactsSetting()) != IPrivacySettings.REAL) {
+                        output_label = "[empty]";
+                        output = new PrivacyCursor();
                     }
+                    mPrvSvc.notification(uid, pSet.getContactsSetting(), IPrivacySettings.DATA_CONTACTS, null);
+                    
                 } else if (auth.equals(CalendarContract.AUTHORITY)) {
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getCalendarSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CALENDAR, null);
-                    } else {
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getCalendarSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getCalendarSetting(), IPrivacySettings.DATA_CALENDAR, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getCalendarSetting(), IPrivacySettings.DATA_CALENDAR, null);
+                    
                 } else if (auth.equals(MMS_CONTENT_URI_AUTHORITY)) {
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getMmsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_MMS, null);
-                    } else {
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getMmsSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getMmsSetting(), IPrivacySettings.DATA_MMS, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getMmsSetting(), IPrivacySettings.DATA_MMS, null);
 
                 } else if (auth.equals(SMS_CONTENT_URI_AUTHORITY)) {
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getSmsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_SMS, null);
-                    } else {
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getSmsSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getSmsSetting(), IPrivacySettings.DATA_SMS, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getSmsSetting(), IPrivacySettings.DATA_SMS, null);
                     // all messages, sms and mms
                 } else if (auth.equals(MMS_SMS_CONTENT_URI_AUTHORITY) || 
                         auth.equals("mms-sms-v2") /* htc specific, accessed by system messages application */) { 
 
                     // deny access if access to either sms, mms or both is restricted by privacy settings
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || (PrivacySettings.getOutcome(pSet.getMmsSetting()) == IPrivacySettings.REAL && PrivacySettings.getOutcome(pSet.getSmsSetting()) == IPrivacySettings.REAL)) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_MMS_SMS, null);
-                    } else if (PrivacySettings.getOutcome(pSet.getMmsSetting()) == IPrivacySettings.REAL && PrivacySettings.getOutcome(pSet.getSmsSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.ERROR_REAL, IPrivacySettings.DATA_MMS_SMS, null);
-                    } else {
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getMmsSetting()) != IPrivacySettings.REAL || PrivacySettings.getOutcome(pSet.getSmsSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getMmsSetting(), IPrivacySettings.DATA_MMS_SMS, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getMmsSetting(), IPrivacySettings.DATA_MMS_SMS, null);
+                    
                 } else if (auth.equals(CallLog.AUTHORITY)) {
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getCallLogSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_CALL_LOG, null);
-                    } else {
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getCallLogSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getCallLogSetting(), IPrivacySettings.DATA_CALL_LOG, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getCallLogSetting(), IPrivacySettings.DATA_CALL_LOG, null);
 
                 } else if (auth.equals(Browser.BOOKMARKS_URI.getAuthority())) {
-                    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                    String packageName = context.getPackageName();
-                    IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                    if (pSet == null || PrivacySettings.getOutcome(pSet.getBookmarksSetting()) == IPrivacySettings.REAL) {
-                        pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_BOOKMARKS, null);
-                    } else {                            
+                    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                    int uid = context.getApplicationInfo().uid;
+                    IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                    if (PrivacySettings.getOutcome(pSet.getBookmarksSetting()) != IPrivacySettings.REAL) {
                         output_label = "[empty]";
                         output = new PrivacyCursor();
-                        pSetMan.notification(packageName, pSet.getBookmarksSetting(), IPrivacySettings.DATA_BOOKMARKS, null);
                     }
+                    mPrvSvc.notification(uid, pSet.getBookmarksSetting(), IPrivacySettings.DATA_BOOKMARKS, null);
                 }
             }
             return output;
@@ -189,13 +175,11 @@ public final class PrivacyContentResolver {
             Cursor output = realCursor;
             if (auth != null && auth.equals("com.google.android.gsf.gservices")) {
                 boolean privacyAllowed = false;
-                String packageName = context.getPackageName();
-                if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-                IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                if (pSet == null || PrivacySettings.getOutcome(pSet.getSimInfoSetting()) == IPrivacySettings.REAL) {
+                int uid = context.getApplicationInfo().uid;
+                if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(context);
+                IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+                if (PrivacySettings.getOutcome(pSet.getSimInfoSetting()) == IPrivacySettings.REAL) {
                     privacyAllowed = true;
-                } else  {
-                    privacyAllowed = false;
                 }
 
                 if (privacyAllowed) {
@@ -221,11 +205,7 @@ public final class PrivacyContentResolver {
                     output_label = "[fake]";
                     output = new PrivacyCursor(realCursor,forbidden_position);
                 }
-                if (pSet == null) {
-                    pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
-                } else {
-                    pSetMan.notification(packageName, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
-                }
+                mPrvSvc.notification(uid, pSet.getSimInfoSetting(), IPrivacySettings.DATA_NETWORK_INFO_SIM, null);
                 
             }
             return output;

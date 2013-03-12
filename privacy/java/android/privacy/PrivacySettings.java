@@ -830,6 +830,8 @@ public final class PrivacySettings implements IPrivacySettings, Parcelable {
         case DEFAULT_REAL:
             return REAL;
         case ERROR_EMPTY:
+        case DEFAULT_EMPTY:
+        case ERROR:
             return EMPTY;
         default:
             return setting;

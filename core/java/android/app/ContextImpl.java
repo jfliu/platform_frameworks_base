@@ -189,9 +189,6 @@ class ContextImpl extends Context {
     private Resources mResources;
     /*package*/ ActivityThread mMainThread;
     private Context mOuterContext;
-    // BEGIN privacy-added
-    private static Context sOuterContext = null;
-    // END privacy-added
     private IBinder mActivityToken = null;
     private ApplicationContentResolver mContentResolver;
     private int mThemeResource = 0;
@@ -356,7 +353,7 @@ class ContextImpl extends Context {
                     Log.d(TAG, "Privacy:ContextImpl: returning PrivacyConnectivityManager");
                     //return new ConnectivityManager(IConnectivityManager.Stub.asInterface(b));
                     IConnectivityManager service = IConnectivityManager.Stub.asInterface(b);
-                    return new PrivacyConnectivityManager(service, getStaticOuterContext());
+                    return new PrivacyConnectivityManager(service);
                     // END privacy-modified
                 }});
 
@@ -424,15 +421,11 @@ class ContextImpl extends Context {
         registerService(LOCATION_SERVICE, new ServiceFetcher() {
                 public Object createService(ContextImpl ctx) {
     	            IBinder b = ServiceManager.getService(LOCATION_SERVICE);
-    
     	            // BEGIN privacy-modified
     	            //return new LocationManager(ctx, ILocationManager.Stub.asInterface(b));
     	            Log.d(TAG, "Privacy:ContextImpl: returning PrivacyLocationManager");
-    	            // SM: I'm not sure whyt this is using getStaticOuterContext rather than getOuterContext.
-    	            // Would have thought it should have been the following line:
-    	            // return new PrivacyLocationManager(ILocationManager.Stub.asInterface(b), ctx.getOuterContext());
-    	            return new PrivacyLocationManager(ILocationManager.Stub.asInterface(b), getStaticOuterContext());
-    	            // END privacy-modified                    
+    	            return new PrivacyLocationManager(ctx, ILocationManager.Stub.asInterface(b));
+    	            // END privacy-modified
                 }});
 
         registerService(NETWORK_POLICY_SERVICE, new ServiceFetcher() {
@@ -1884,10 +1877,7 @@ class ContextImpl extends Context {
     }
 
     ContextImpl() {
-        if (sOuterContext != null) {
-            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
-        }
-        sOuterContext = mOuterContext = this;
+        mOuterContext = this;
     }
 
     /**
@@ -1904,12 +1894,7 @@ class ContextImpl extends Context {
         mContentResolver = context.mContentResolver;
         mUser = context.mUser;
         mDisplay = context.mDisplay;
-        
-        if (sOuterContext != null) {
-            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
-        }
-        
-        sOuterContext = mOuterContext = this;
+        mOuterContext = this;
     }
 
     final void init(LoadedApk packageInfo, IBinder activityToken, ActivityThread mainThread) {
@@ -1965,19 +1950,11 @@ class ContextImpl extends Context {
     }
 
     final void setOuterContext(Context context) {
-        if (sOuterContext != null) {
-            Log.d(TAG, "Privacy:ContextImpl: ContextImpl being created but already has sOuterContext");
-        }
-
-        sOuterContext = mOuterContext = context;
+        mOuterContext = context;
     }
 
     final Context getOuterContext() {
         return mOuterContext;
-    }
-
-    final static Context getStaticOuterContext() {
-        return sOuterContext;
     }
 
     final IBinder getActivityToken() {

@@ -32,7 +32,6 @@ import android.util.Log;
 //BEGIN privacy-added
 import android.app.ActivityThread;
 import android.app.Application;
-import android.content.Context;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.os.Binder;
@@ -102,13 +101,13 @@ public class AudioRecord
      * Denotes a failure due to the improper use of a method.
      */
     public static final int ERROR_INVALID_OPERATION = -3;
-    
+
     private static final int AUDIORECORD_ERROR_SETUP_ZEROFRAMECOUNT      = -16;
     private static final int AUDIORECORD_ERROR_SETUP_INVALIDCHANNELMASK  = -17;
     private static final int AUDIORECORD_ERROR_SETUP_INVALIDFORMAT       = -18;
     private static final int AUDIORECORD_ERROR_SETUP_INVALIDSOURCE       = -19;
     private static final int AUDIORECORD_ERROR_SETUP_NATIVEINITFAILED    = -20;
-    
+
     // Events:
     // to keep in sync with frameworks/base/include/media/AudioRecord.h 
     /**
@@ -119,7 +118,7 @@ public class AudioRecord
      * Event id denotes when previously set update period has elapsed during recording.
      */
     private static final int NATIVE_EVENT_NEW_POS = 3;
-    
+
     private final static String TAG = "AudioRecord-Java";
 
 
@@ -137,7 +136,7 @@ public class AudioRecord
      */
     @SuppressWarnings("unused")
     private int mNativeCallbackCookie;
-    
+
 
     //---------------------------------------------------------
     // Member variables
@@ -215,16 +214,13 @@ public class AudioRecord
     private static final int IS_ALLOWED = -1;
     private static final int IS_NOT_ALLOWED = -2;
     private static final int GOT_ERROR = -3;
-    
+
     private static final String PRIVACY_TAG = "PM,AudioRecord";
-    private Context context;
-    
-    private PrivacySettingsManager pSetMan;
-    
+
+    private PrivacySettingsManager mPrvSvc;
+
     private boolean privacyMode = false;
-    
-    private IPackageManager mPm;
-    
+
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -256,10 +252,10 @@ public class AudioRecord
      */
     public AudioRecord(int audioSource, int sampleRateInHz, int channelConfig, int audioFormat, 
             int bufferSizeInBytes)
-    throws IllegalArgumentException {   
+                    throws IllegalArgumentException {   
         mState = STATE_UNINITIALIZED;
         mRecordingState = RECORDSTATE_STOPPED;
-        
+
         // remember which looper is associated with the AudioRecord instanciation
         if ((mInitializationLooper = Looper.myLooper()) == null) {
             mInitializationLooper = Looper.getMainLooper();
@@ -282,11 +278,11 @@ public class AudioRecord
             return; // with mState == STATE_UNINITIALIZED
         }
 
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //BEGIN PRIVACY
-        
+
         initiate();
-       
+
         //END PRIVACY
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -300,47 +296,21 @@ public class AudioRecord
     //BEGIN PRIVACY
     /**
      * {@hide}
-     * @return package names of current process which is using this object or null if something went wrong
-     */
-    private String[] getPackageName(){
-    	try{
-    		if(mPm != null){
-        		int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-        	}
-    		else{
-    			mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-    			int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-    		}
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
-    		return null;
-    	}
-    }
-    /**
-     * {@hide}
      * This method sets up all variables which are needed for privacy mode! It also writes to privacyMode, if everything was successfull or not! 
      * -> privacyMode = true ok! otherwise false!
      * CALL THIS METHOD IN CONSTRUCTOR!
      */
     private void initiate(){
-    	try{
-    		context = null;
-    		if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-       	 	privacyMode = true;
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
-    		privacyMode = false;
-    	}
+        try{
+            if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
+            privacyMode = true;
+        } catch(Exception e) {
+            e.printStackTrace();
+            Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+            privacyMode = false;
+        }
     }
+    
     /**
      * {@hide}
      * This method should be used, because in some devices the uid has more than one package within!
@@ -348,44 +318,21 @@ public class AudioRecord
      */
     private int checkIfPackagesAllowed(){
         try{
-            //boolean isAllowed = false;
-            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-            String[] package_names = getPackageName();
-            if (package_names == null) {
-                Log.e(PRIVACY_TAG,"AudioRecord:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
-                return GOT_ERROR;
-            }
+            int uid = Process.myUid();
+            if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
             IPrivacySettings pSet = null;
-            for(int i=0;i < package_names.length; i++){
-                pSet = pSetMan.getSettingsSafe(package_names[i]);
-                if(pSet != null && PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) != PrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
-                    return IS_NOT_ALLOWED;
-                }
-                pSet = null;
+            pSet = mPrvSvc.getSettingsSafe(uid);
+            if(PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) == IPrivacySettings.REAL){
+                return IS_ALLOWED;
+            } else {
+                return IS_NOT_ALLOWED;
             }
-            return IS_ALLOWED;
         } catch (Exception e){
-            Log.e(PRIVACY_TAG,"AudioRecord:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
+            Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
             return GOT_ERROR;
         }
     }
-    
-    
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone.");
-	}
-    }
+
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
 
@@ -401,17 +348,17 @@ public class AudioRecord
     //    mAudioFormat is valid
     //    mSampleRate is valid
     private void audioParamCheck(int audioSource, int sampleRateInHz, 
-                                 int channelConfig, int audioFormat) {
+            int channelConfig, int audioFormat) {
 
         //--------------
         // audio source
         if ( (audioSource < MediaRecorder.AudioSource.DEFAULT) ||
-             (audioSource > MediaRecorder.getAudioSourceMax()) )  {
+                (audioSource > MediaRecorder.getAudioSourceMax()) )  {
             throw (new IllegalArgumentException("Invalid audio source."));
         } else {
             mRecordSource = audioSource;
         }
-        
+
         //--------------
         // sample rate
         if ( (sampleRateInHz < 4000) || (sampleRateInHz > 48000) ) {
@@ -456,8 +403,8 @@ public class AudioRecord
             break;
         default:
             mAudioFormat = AudioFormat.ENCODING_INVALID;
-        throw (new IllegalArgumentException("Unsupported sample encoding." 
-                + " Should be ENCODING_PCM_8BIT or ENCODING_PCM_16BIT."));
+            throw (new IllegalArgumentException("Unsupported sample encoding." 
+                    + " Should be ENCODING_PCM_8BIT or ENCODING_PCM_16BIT."));
         }
     }
 
@@ -472,7 +419,7 @@ public class AudioRecord
         // NB: this section is only valid with PCM data. 
         // To update when supporting compressed formats
         int frameSizeInBytes = mChannelCount 
-            * (mAudioFormat == AudioFormat.ENCODING_PCM_8BIT ? 1 : 2);
+                * (mAudioFormat == AudioFormat.ENCODING_PCM_8BIT ? 1 : 2);
         if ((audioBufferSize % frameSizeInBytes != 0) || (audioBufferSize < 1)) {
             throw (new IllegalArgumentException("Invalid audio buffer size."));
         }
@@ -513,7 +460,7 @@ public class AudioRecord
     public int getSampleRate() {
         return mSampleRate;
     }
-    
+
     /**
      * Returns the audio recording source. 
      * @see MediaRecorder.AudioSource
@@ -618,13 +565,13 @@ public class AudioRecord
             loge("getMinBufferSize(): Invalid channel configuration.");
             return AudioRecord.ERROR_BAD_VALUE;
         }
-        
+
         // PCM_8BIT is not supported at the moment
         if (audioFormat != AudioFormat.ENCODING_PCM_16BIT) {
             loge("getMinBufferSize(): Invalid audio format.");
             return AudioRecord.ERROR_BAD_VALUE;
         }
-        
+
         int size = native_get_min_buff_size(sampleRateInHz, channelCount, audioFormat);
         if (size == 0) {
             return AudioRecord.ERROR_BAD_VALUE;
@@ -654,27 +601,20 @@ public class AudioRecord
      * @throws IllegalStateException
      */
     public void startRecording()
-    throws IllegalStateException {
+            throws IllegalStateException {
 
+        int uid = Process.myUid();
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    	//BEGIN PRIVACY
-    	//now check if everything was ok in constructor!
+        //BEGIN PRIVACY
+        //now check if everything was ok in constructor!
         if(!privacyMode){
             initiate();
         }
         if ((mState != STATE_INITIALIZED) || (checkIfPackagesAllowed() != IS_ALLOWED)) { //If applicaton is not allowed -> throw exception!
-            dataAccess(false);
-            String packageName[] = getPackageName();
-            if(packageName != null && pSetMan != null) {
-                pSetMan.notification(packageName[0], PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null);
-                throw(new IllegalStateException("startRecording() called on an "+"uninitialized AudioRecord."));
-            }
+            mPrvSvc.notification(uid, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null);
+            throw(new IllegalStateException("startRecording() called on an "+"uninitialized AudioRecord."));
         } else {
-            dataAccess(true);
-            String packageName[] = getPackageName();
-            if(packageName != null && pSetMan != null) {
-                pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
-            }
+            mPrvSvc.notification(uid, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
         }
         //END PRIVACY
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -696,7 +636,7 @@ public class AudioRecord
      * @see MediaSyncEvent
      */
     public void startRecording(MediaSyncEvent syncEvent)
-    throws IllegalStateException {
+            throws IllegalStateException {
         if (mState != STATE_INITIALIZED) {
             throw(new IllegalStateException("startRecording() called on an "
                     +"uninitialized AudioRecord."));
@@ -715,7 +655,7 @@ public class AudioRecord
      * @throws IllegalStateException
      */
     public void stop()
-    throws IllegalStateException {
+            throws IllegalStateException {
         if (mState != STATE_INITIALIZED) {
             throw(new IllegalStateException("stop() called on an uninitialized AudioRecord."));
         }
@@ -745,7 +685,7 @@ public class AudioRecord
         if (mState != STATE_INITIALIZED) {
             return ERROR_INVALID_OPERATION;
         }
-        
+
         if ( (audioData == null) || (offsetInBytes < 0 ) || (sizeInBytes < 0) 
                 || (offsetInBytes + sizeInBytes > audioData.length)) {
             return ERROR_BAD_VALUE;
@@ -769,7 +709,7 @@ public class AudioRecord
         if (mState != STATE_INITIALIZED) {
             return ERROR_INVALID_OPERATION;
         }
-        
+
         if ( (audioData == null) || (offsetInShorts < 0 ) || (sizeInShorts < 0) 
                 || (offsetInShorts + sizeInShorts > audioData.length)) {
             return ERROR_BAD_VALUE;
@@ -793,7 +733,7 @@ public class AudioRecord
         if (mState != STATE_INITIALIZED) {
             return ERROR_INVALID_OPERATION;
         }
-        
+
         if ( (audioBuffer == null) || (sizeInBytes < 0) ) {
             return ERROR_BAD_VALUE;
         }
@@ -823,11 +763,11 @@ public class AudioRecord
      * @param handler the Handler that will receive the event notification messages.
      */
     public void setRecordPositionUpdateListener(OnRecordPositionUpdateListener listener, 
-                                                    Handler handler) {
+            Handler handler) {
         synchronized (mPositionListenerLock) {
-            
+
             mPositionListener = listener;
-            
+
             if (listener != null) {
                 if (handler != null) {
                     mEventHandler = new NativeEventHandler(this, handler.getLooper());
@@ -839,7 +779,7 @@ public class AudioRecord
                 mEventHandler = null;
             }
         }
-        
+
     }
 
 
@@ -883,7 +823,7 @@ public class AudioRecord
          * by the recording head.
          */
         void onMarkerReached(AudioRecord recorder);
-        
+
         /**
          * Called on the listener to periodically notify it that the record head has reached
          * a multiple of the notification period.
@@ -896,13 +836,13 @@ public class AudioRecord
     //---------------------------------------------------------
     // Inner classes
     //--------------------
-      
+
     /**
      * Helper class to handle the forwarding of native events to the appropriate listener
      * (potentially) handled in a different thread
      */  
     private class NativeEventHandler extends Handler {
-        
+
         private final AudioRecord mAudioRecord;
 
         NativeEventHandler(AudioRecord recorder, Looper looper) {
@@ -916,7 +856,7 @@ public class AudioRecord
             synchronized (mPositionListenerLock) {
                 listener = mAudioRecord.mPositionListener;
             }
-            
+
             switch(msg.what) {
             case NATIVE_EVENT_MARKER:
                 if (listener != null) {
@@ -931,12 +871,12 @@ public class AudioRecord
             default:
                 Log.e(TAG, "[ android.media.AudioRecord.NativeEventHandler ] " +
                         "Unknown event type: " + msg.what);
-            break;
+                break;
             }
         }
     };
-    
-    
+
+
     //---------------------------------------------------------
     // Java methods called from the native side
     //--------------------
@@ -948,15 +888,15 @@ public class AudioRecord
         if (recorder == null) {
             return;
         }
-        
+
         if (recorder.mEventHandler != null) {
             Message m = 
-                recorder.mEventHandler.obtainMessage(what, arg1, arg2, obj);
+                    recorder.mEventHandler.obtainMessage(what, arg1, arg2, obj);
             recorder.mEventHandler.sendMessage(m);
         }
 
     }
-    
+
 
     //---------------------------------------------------------
     // Native methods called from the Java side
@@ -967,7 +907,7 @@ public class AudioRecord
             int buffSizeInBytes, int[] sessionId);
 
     private native final void native_finalize();
-    
+
     private native final void native_release();
 
     private native final int native_start(int syncEvent, int sessionId);
@@ -981,17 +921,17 @@ public class AudioRecord
             int offsetInShorts, int sizeInShorts);
 
     private native final int native_read_in_direct_buffer(Object jBuffer, int sizeInBytes);
-    
+
     private native final int native_set_marker_pos(int marker);
     private native final int native_get_marker_pos();
-    
+
     private native final int native_set_pos_update_period(int updatePeriod);
     private native final int native_get_pos_update_period();
-    
+
     static private native final int native_get_min_buff_size(
             int sampleRateInHz, int channelCount, int audioFormat);
 
-    
+
     //---------------------------------------------------------
     // Utility methods
     //------------------

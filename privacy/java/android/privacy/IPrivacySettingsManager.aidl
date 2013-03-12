@@ -17,13 +17,13 @@ import java.util.Map;
 /** {@hide} */
 interface IPrivacySettingsManager
 {
-    PrivacySettings getSettings(String packageName);
+    PrivacySettings getSettings(int uid);
     boolean saveSettings(in PrivacySettings settings);
-    boolean deleteSettings(String packageName);
+    boolean deleteSettings(int uid);
     boolean setGlobalSetting(String setting, String value);
-    void notification(String packageName, byte accessMode, String dataType, String output);
+    void notification(int uid, byte accessMode, String dataType, String output);
     void registerObservers();
-    void addObserver(String packageName);
+    void addObserver(int uid);
     boolean purgeSettings();
     boolean setEnabled(boolean enable);
     boolean setNotificationsEnabled(boolean enable);
@@ -33,6 +33,4 @@ interface IPrivacySettingsManager
     void setDebugFlagBool(String flagName, boolean value);
     boolean getDebugFlagBool(String flagName);
    	Map getDebugFlags();
-   	
-   	   	
 }

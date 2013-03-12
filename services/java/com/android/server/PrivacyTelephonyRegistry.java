@@ -43,11 +43,11 @@ import android.util.Log;
 import android.os.Process;
 
 
-public class PrivacyTelephonyRegistry extends TelephonyRegistry{
+public class PrivacyTelephonyRegistry extends TelephonyRegistry {
 
 	private static final String P_TAG = "PrivacyTelephonyRegistry";
 	
-	private PrivacySettingsManager pSetMan;
+	private PrivacySettingsManager mPrvSvc;
 	
 	private static final int PERMISSION_CELL_LOCATION = 0;
 	
@@ -61,7 +61,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
 	
 	public PrivacyTelephonyRegistry(Context context) {
 		super(context);
-        pSetMan = PrivacySettingsManager.getPrivacyService();
+        mPrvSvc = PrivacySettingsManager.getPrivacyService();
 		try{
 			registerPrivacy();
 		} catch(Exception e){
@@ -78,9 +78,10 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
             if(intent.getAction().equals("android.privacy.BLOCKED_PHONE_CALL")){
             	Bundle data = new Bundle();
             	data = intent.getExtras();
-            	String packageName = data.getString("packageName");
-            	if(data.containsKey("packageName")){
-            		Log.i(P_TAG, "got blocked phone call INTENT from package: " + data.getString("packageName"));
+            	int uid = data.getInt("uid");
+            	String packageName = data.getString("packageName"); // I don't like using package name here, but because 'Record' uses packageName, we are stuck with it
+            	if(data.containsKey("uid")){
+            		Log.i(P_TAG, "got blocked phone call INTENT from uid " + data.getInt("uid"));
             	} else{
             		Log.i(P_TAG, "got blocked phone call INTENT without package information");
             	}
@@ -89,13 +90,13 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
             		int state = data.getInt("phoneState");
             		switch(state){
             			case TelephonyManager.CALL_STATE_IDLE:
-            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_IDLE, null, packageName);
+            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_IDLE, null, uid, packageName);
             				return;
             			case TelephonyManager.CALL_STATE_OFFHOOK:
-            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_OFFHOOK, null, packageName);
+            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_OFFHOOK, null, uid, packageName);
             				return;
             			case TelephonyManager.CALL_STATE_RINGING:
-            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_RINGING, "12345", packageName);
+            				notifyPrivacyCallState(TelephonyManager.CALL_STATE_RINGING, "12345", uid, packageName);
             				return;
             			default:
             				return;
@@ -113,7 +114,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
      * @param packageName the affected package to fake callstate!
      * @author CollegeDev
      */
-    public void notifyPrivacyCallState(int state, String incomingNumber, String packageName) {
+    public void notifyPrivacyCallState(int state, String incomingNumber, int uid, String packageName) {
     	//we do not need to check for permissions
 //        if (!checkNotifyPermission("notifyCallState()")) {
 //            return;
@@ -125,7 +126,8 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
                 if ((r.events & PhoneStateListener.LISTEN_CALL_STATE) != 0) {
                     try {
                     	//only notify the affected application
-                    	if(r.pkgForDebug.equals(packageName)){
+                    	// if(r.pkgForDebug.equals(packageName)){
+                        if(r.callerUid == uid) { // SM: need to check that this is the UID we want to check the permissions on
                     		r.callback.onCallStateChanged(state, incomingNumber);
                     	}
                     } catch (RemoteException ex) {
@@ -268,10 +270,10 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
     }
 	
 	
-	private boolean isPackageAllowed(int PERMISSION, String packageName){
+	private boolean isPackageAllowed(int PERMISSION, int uid){
 	    IPrivacySettings settings;
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-        settings = pSetMan.getSettingsSafe(packageName);
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
+        settings = mPrvSvc.getSettingsSafe(uid);
 	    
 	    // Default is to allow access if no settings are present
 		if(settings == null) return true;
@@ -319,7 +321,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
             for (Record r : mRecords) {
                 if ((r.events & PhoneStateListener.LISTEN_SERVICE_STATE) != 0) {
                     try {
-                    	if(!isPackageAllowed(PERMISSION_SERVICE_STATE,r.pkgForDebug)){
+                    	if(!isPackageAllowed(PERMISSION_SERVICE_STATE, r.callerUid)){ // SM: May not work: need to test
                     		 state.setOperatorName("", "", "");
                     		 Log.i(P_TAG,"package: " + r.pkgForDebug + " blocked for Cellinfo");
                     	}
@@ -346,7 +348,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
             for (Record r : mRecords) {
                 if ((r.events & PhoneStateListener.LISTEN_CELL_INFO) != 0) {
                     try {
-                    	if(!isPackageAllowed(PERMISSION_CELL_INFO,r.pkgForDebug)){
+                    	if(!isPackageAllowed(PERMISSION_CELL_INFO, r.callerUid)){ // SM: May not work: need to test
                     		//for testings only at first
                             CellInfoGsm fakeCellInfo = new CellInfoGsm(); 
                             CellIdentityGsm fakeCellIdentity = new CellIdentityGsm(11,11,549,525,2);
@@ -354,8 +356,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
                     		//r.callback.onCellInfoChanged(new CellInfoGsm(CellInfo.TIMESTAMP_TYPE_UNKNOWN,System.currentTimeMillis(),System.currentTimeMillis(),true,new SignalStrength(),new CellIdentityGsm(11,11,549,545,2,"unknown")));
                     		r.callback.onCellInfoChanged(new ArrayList<CellInfo>(Arrays.asList(fakeCellInfo)));
                     		Log.i(P_TAG,"package: " + r.pkgForDebug + " blocked for Cellinfo");
-                    	}
-                    	else{
+                    	} else {
                     		r.callback.onCellInfoChanged(cellInfo);
                     		Log.i(P_TAG,"package: " + r.pkgForDebug + " allowed for Cellinfo");
                     	}
@@ -394,7 +395,7 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
             for (Record r : mRecords) {
                 if ((r.events & PhoneStateListener.LISTEN_CELL_LOCATION) != 0) {
                     try {
-                    	if(!isPackageAllowed(PERMISSION_CELL_LOCATION,r.pkgForDebug) && !goNormal){
+                    	if(!isPackageAllowed(PERMISSION_CELL_LOCATION, r.callerUid) && !goNormal){ // SM: May not work: need to test
                     		Bundle output = new Bundle();
                     		if(isCDMA){
                     			CdmaCellLocation tmp = new CdmaCellLocation();

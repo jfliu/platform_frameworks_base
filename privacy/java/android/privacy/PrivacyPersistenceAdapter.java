@@ -95,7 +95,7 @@ public final class PrivacyPersistenceAdapter {
     private ConfigMonitor mConfigMonitor;
 
     //By using the same locks for the database and the cache, we can separate read and write locks without extra synchronization 
-    private static final Map<String, PrivacySettings> sCache = new HashMap<String, PrivacySettings>();
+    private static final Map<Integer, PrivacySettings> sCache = new HashMap<Integer, PrivacySettings>();
     private static final Map<String, String> sGlobalSettingsCache = new HashMap<String, String>();
 
     private static final String TABLE_SETTINGS = "settings";
@@ -476,19 +476,14 @@ public final class PrivacyPersistenceAdapter {
      * @return privacy settings for the package, or null if no settings exist
      *         for it
      */
-    public PrivacySettings getSettings(String packageName) {
+    public PrivacySettings getSettings(int uid) {
         PrivacySettings privacySettings = null;
-
-        if (packageName == null) {
-            throw new InvalidParameterException(
-                    "PrivacyPersistenceAdapter:getSettings:insufficient application identifier - package name is required");
-        }
 
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getSettings: ReadLock: (pre)lock");
         sLock.readLock().lock();
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:getSettings: ReadLock: (post)lock");
         try {
-            return sCache.get(packageName);
+            return sCache.get(uid);
         } finally {
             sLock.readLock().unlock();
         }
@@ -536,7 +531,7 @@ public final class PrivacyPersistenceAdapter {
                                         (byte)cursor.getShort(37), (byte)cursor.getShort(38), (byte)cursor.getShort(39), (byte)cursor.getShort(40), cursor.getString(41), (byte)cursor.getShort(42),
                                         (byte)cursor.getShort(43), (byte)cursor.getShort(44), (byte)cursor.getShort(45), (byte)cursor.getShort(46));
 
-                                sCache.put(privacySettings.getPackageName(), privacySettings);
+                                sCache.put(privacySettings.getUid(), privacySettings);
                             } catch (Exception e) {
                                 e.printStackTrace();
                                 PrivacyDebugger.e(TAG, "Error occurred in getSettingsAll");
@@ -545,7 +540,7 @@ public final class PrivacyPersistenceAdapter {
                     }
                     cursor.close();
 
-                    for (Entry<String, PrivacySettings> entry : sCache.entrySet()) {
+                    for (Entry<Integer, PrivacySettings> entry : sCache.entrySet()) {
                         // get allowed contacts IDs if necessary
                         cursor = query(db, TABLE_ALLOWED_CONTACTS, new String [] { "contact_id" }, "settings_id=?", new String [] { Integer.toString(entry.getValue().get_id()) }, null, null, null, null);
 
@@ -585,17 +580,12 @@ public final class PrivacyPersistenceAdapter {
     public boolean saveSettings(PrivacySettings s) {
         boolean result = false;
 
-        String packageName = s.getPackageName();
-
-        if (packageName == null || packageName.isEmpty()) {
-            PrivacyDebugger.e(TAG, "saveSettings - either package name is missing");
-            throw new InvalidParameterException("PackageName can not be null or empty");
-        }
+        int uid = s.getUid();
 
         ContentValues values = new ContentValues();
-        values.put("packageName", packageName);
-        // values.put("uid", uid);
-        values.put("uid", DUMMY_UID);
+        values.put("packageName", "");
+        values.put("uid", uid);
+        // values.put("uid", DUMMY_UID);
 
         values.put("deviceIdSetting", s.getDeviceIdSetting());
         values.put("deviceId", s.getDeviceId());
@@ -696,15 +686,15 @@ public final class PrivacyPersistenceAdapter {
                     } else { // new entry -> insert if no duplicates exist
                         // PrivacyDebugger.d(TAG,
                         // "saveSettings - new entry; verifying if duplicates exist");
-                        cursor = db.query(TABLE_SETTINGS, new String[] { "_id" }, "packageName=?",
-                                new String[] { s.getPackageName() }, null, null, null);
+                        cursor = db.query(TABLE_SETTINGS, new String[] { "_id" }, "uid=?",
+                                new String[] { Integer.toString(s.getUid()) }, null, null, null);
 
                         if (cursor != null) {
                             if (cursor.getCount() == 1) { // exactly one entry
                                 // exists -> update
                                 // PrivacyDebugger.d(TAG, "saveSettings - updating existing entry");
-                                if (db.update(TABLE_SETTINGS, values, "packageName=?",
-                                        new String[] { s.getPackageName() }) < 1) {
+                                if (db.update(TABLE_SETTINGS, values, "uid=?",
+                                        new String[] { Integer.toString(s.getUid()) }) < 1) {
                                     throw new Exception("saveSettings - failed to update database entry");
                                 }
 
@@ -766,8 +756,8 @@ public final class PrivacyPersistenceAdapter {
                     // mark DB transaction successful (commit the changes)
                     db.setTransactionSuccessful();
 
-                    sCache.put(packageName, s);
-                    if (LOG_CACHE) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Cache update for" + packageName);
+                    sCache.put(uid, s);
+                    if (LOG_CACHE) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Cache update for UID " + uid);
                 } finally {
                     if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:saveSettings: Transaction: (pre)end");
                     db.endTransaction(); // we want to transition from set transaction successful to end as fast as possible to avoid errors (see the Android docs)
@@ -785,7 +775,7 @@ public final class PrivacyPersistenceAdapter {
             }
             result = true;
         } catch (Exception e) {
-            PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:saveSettings: saving for " + packageName + " failed", e);
+            PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:saveSettings: saving for UID " + uid + " failed", e);
         } finally {
             closeIdleDatabase();
         }
@@ -864,20 +854,16 @@ public final class PrivacyPersistenceAdapter {
                     db.beginTransaction();
                     if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:rebuildFromCache: Transaction: (post)begin");
                     try {
-                        String packageName;
+                        int uid;
                         PrivacySettings s;
                         ContentValues values = new ContentValues(); // These ContentValues are reused to save object creation, so all values MUST be set each time
-                        for (Entry<String, PrivacySettings> entry : sCache.entrySet()) {
-                            PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter: rebuildFromCache: Writing settings for " + entry.getKey());
-                            packageName = entry.getKey();
+                        for (Entry<Integer, PrivacySettings> entry : sCache.entrySet()) {
+                            PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter: rebuildFromCache: Writing settings for UID " + entry.getKey());
+                            uid = entry.getKey();
                             s = entry.getValue();
-                            if (packageName == null || packageName.isEmpty()) {
-                                PrivacyDebugger.e(TAG, "rebuildFromCache - package name is missing");
-                                continue;
-                            }
 
-                            values.put("packageName", packageName);
-                            // values.put("uid", uid);
+                            values.put("packageName", "");
+                            values.put("uid", uid);
                             values.put("uid", DUMMY_UID);
 
                             values.put("deviceIdSetting", s.getDeviceIdSetting());
@@ -936,7 +922,7 @@ public final class PrivacyPersistenceAdapter {
                             try {
                                 long rowId = db.insert(TABLE_SETTINGS, null, values);
                                 if (rowId == -1) {
-                                    PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:rebuildFromCache: failed insert entry: " + s.getPackageName());
+                                    PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter:rebuildFromCache: failed insert entry: UID " + s.getUid());
                                 }
 
                                 int[] allowedContacts = s.getAllowedContacts();
@@ -956,7 +942,7 @@ public final class PrivacyPersistenceAdapter {
                                 }
 
                             } catch (Exception e) {
-                                PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter: rebuildFromCache: Error restoring for package " + s.getPackageName());
+                                PrivacyDebugger.e(TAG, "PrivacyPersistenceAdapter: rebuildFromCache: Error restoring for package UID " + s.getUid());
                             }
                         }
                     } catch (Exception e) {
@@ -995,20 +981,20 @@ public final class PrivacyPersistenceAdapter {
      * 
      * @param settings
      *            Map of setting names and values: setting name is used as filename, and value as content
-     * @param packageName
-     *            name of package, or null if global setting
+     * @param uid
+     *            UID, or null if global setting
      * @return true if file was successful written
      * @throws Exception
      *             if we cannot write settings to directory
      */
-    private boolean writeExternalSettings(Map<String, String> settings, String packageName)
+    private boolean writeExternalSettings(Map<String, String> settings, Integer uid)
             throws Exception {
         // save settings to plain text file (for access from core libraries)
         File settingsFolder;
-        if (packageName == null) {
+        if (uid == null) {
             settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
         } else {
-            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + uid + File.separator);
         }
 
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
@@ -1053,20 +1039,20 @@ public final class PrivacyPersistenceAdapter {
      * 
      * @param settings
      *            Map of setting names and values: setting name is used as filename, and value as content
-     * @param packageName
-     *            name of package, or null if global setting
+     * @param uid
+     *            UID of package, or null if global setting
      * @return true if file was successful written
      * @throws Exception
      *             if we cannot write settings to directory
      */
-    private boolean writeExternalSetting(String setting, String value, String packageName)
+    private boolean writeExternalSetting(String setting, String value, Integer uid)
             throws Exception {
         // save settings to plain text file (for access from core libraries)
         File settingsFolder;
-        if (packageName == null) {
+        if (uid == null) {
             settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
         } else {
-            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + uid + File.separator);
         }
 
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:writeExternalSettings: WriteLock: (pre)lock");
@@ -1090,7 +1076,7 @@ public final class PrivacyPersistenceAdapter {
             writer.append(value);
             writer.flush();
             writer.close();
-            if (packageName == null) {
+            if (uid == null) {
                 sGlobalSettingsCache.put(setting, value);
             }
         } catch (IOException e) {
@@ -1105,14 +1091,14 @@ public final class PrivacyPersistenceAdapter {
         return true;
     }
 
-    private boolean deleteExternalSetting(String setting, String packageName)
+    private boolean deleteExternalSetting(String setting, Integer uid)
             throws Exception {
         // save settings to plain text file (for access from core libraries)
         File settingsFolder;
-        if (packageName == null) {
+        if (uid == null) {
             settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
         } else {
-            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + uid + File.separator);
         }
         
         if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:deleteExternalSetting: WriteLock: (pre)lock");
@@ -1131,7 +1117,7 @@ public final class PrivacyPersistenceAdapter {
             }            
             settingFile.delete();
             
-            if (packageName == null && sGlobalSettingsCache.containsKey(setting)) {
+            if (uid == null && sGlobalSettingsCache.containsKey(setting)) {
                 sGlobalSettingsCache.remove(setting);
             }
         } finally {
@@ -1145,18 +1131,18 @@ public final class PrivacyPersistenceAdapter {
     
     /**
      * Read the content of all external settings files for a single package (or global settings)
-     * @param packageName  Package name if reading settings for a package, or null to read global settings
+     * @param uid  UID if reading settings for a package, or null to read global settings
      * @return  Map of setting names and values
      * @throws Exception If any exception occurs
      */
-    private Map<String, String> readExternalSettings(String packageName)
+    private Map<String, String> readExternalSettings(Integer uid)
             throws Exception {
         // save settings to plain text file (for access from core libraries)
         File settingsFolder;
-        if (packageName == null) {
+        if (uid == null) {
             settingsFolder = new File(SETTINGS_DIRECTORY + File.separator);
         } else {
-            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + packageName + File.separator);
+            settingsFolder = new File(SETTINGS_DIRECTORY + File.separator + uid + File.separator);
         }
         
         Map<String, String> settings = null;
@@ -1203,12 +1189,8 @@ public final class PrivacyPersistenceAdapter {
     /**
      * This method creates external settings files for access from core libraries
      * 
-     * @param settingsName
-     *            field name from database
-     * @param packageName
-     *            name of package
      * @param s
-     *            settings from package
+     *            PrivacySettings fro the UID to be updated
      * @return true if file was successful written
      * @throws Exception
      *             if we cannot write settings to directory
@@ -1218,7 +1200,7 @@ public final class PrivacyPersistenceAdapter {
         Map<String, String> settingMap = new HashMap<String, String>();
         settingMap.put("systemLogsSetting", s.getSystemLogsSetting() + "");
         settingMap.put("ipTableProtectSetting", s.getIpTableProtectSetting() + "");
-        return writeExternalSettings(settingMap, s.getPackageName());
+        return writeExternalSettings(settingMap, s.getUid());
     }
 
     /**
@@ -1226,7 +1208,7 @@ public final class PrivacyPersistenceAdapter {
      * 
      * @return true if settings were deleted successfully, false otherwise
      */
-    public boolean deleteSettings(String packageName) {
+    public boolean deleteSettings(int uid) {
         boolean result = true;
 
         SQLiteDatabase db = null;
@@ -1251,8 +1233,8 @@ public final class PrivacyPersistenceAdapter {
                     // not possible
                     // TODO: restructure this into a more efficient query (ideally a
                     // single query without a cursor)
-                    Cursor c = db.query(TABLE_SETTINGS, new String[] { "_id" }, "packageName=?",
-                            new String[] { packageName }, null, null, null);
+                    Cursor c = db.query(TABLE_SETTINGS, new String[] { "_id" }, "uid=?",
+                            new String[] { Integer.toString(uid) }, null, null, null);
 
 
                     if (c != null && c.getCount() > 0 && c.moveToFirst()) {
@@ -1261,17 +1243,17 @@ public final class PrivacyPersistenceAdapter {
                                 new String[] { Integer.toString(id) });
                         c.close();
                     } else {
-                        PrivacyDebugger.e(TAG, "deleteSettings - database entry for " + packageName + " not found");
+                        PrivacyDebugger.e(TAG, "deleteSettings - database entry for UID " + uid + " not found");
                     }
 
-                    if (db.delete(TABLE_SETTINGS, "packageName=?", new String[] { packageName }) == 0) {
-                        PrivacyDebugger.e(TAG, "deleteSettings - database entry for " + packageName + " not found");
+                    if (db.delete(TABLE_SETTINGS, "uid=?", new String[] { Integer.toString(uid) }) == 0) {
+                        PrivacyDebugger.e(TAG, "deleteSettings - database entry for UID " + uid + " not found");
                     }
 
                     // delete settings from plain text file (for access from core
                     // libraries)
-                    File settingsPackageDir = new File("/data/system/privacy/" + packageName + "/");
-                    File systemLogsSettingFile = new File("/data/system/privacy/" + packageName
+                    File settingsPackageDir = new File("/data/system/privacy/" + uid + "/");
+                    File systemLogsSettingFile = new File("/data/system/privacy/" + uid
                             + "/systemLogsSetting");
 
                     // delete the setting files
@@ -1282,7 +1264,7 @@ public final class PrivacyPersistenceAdapter {
 
                     db.setTransactionSuccessful();
 
-                    sCache.remove(packageName);
+                    sCache.remove(uid);
                 } finally {
                     if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:deleteSettings: Transaction: (pre)end");
                     db.endTransaction();
@@ -1371,11 +1353,11 @@ public final class PrivacyPersistenceAdapter {
         boolean result = true;
 
         // get installed apps
-        Set<String> apps = new HashSet<String>();
+        Set<Integer> apps = new HashSet<Integer>();
         PackageManager pMan = mContext.getPackageManager();
         List<ApplicationInfo> installedApps = pMan.getInstalledApplications(0);
         for (ApplicationInfo appInfo : installedApps) {
-            apps.add(appInfo.packageName);
+            apps.add(appInfo.uid);
         }
 
         SQLiteDatabase db = null;
@@ -1402,13 +1384,13 @@ public final class PrivacyPersistenceAdapter {
                 db.beginTransaction();
                 if (LOG_LOCKING) PrivacyDebugger.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: Transaction: (post)begin");
                 try {
-                    cursor = query(db, TABLE_SETTINGS, new String[] { "packageName" }, null, null, null, null,
+                    cursor = query(db, TABLE_SETTINGS, new String[] { "uid" }, null, null, null, null,
                             null, null);
                     if (cursor != null && cursor.getCount() > 0 && cursor.moveToFirst()) {
                         do {
-                            String packageName = cursor.getString(0);
-                            if (!apps.contains(packageName)) {
-                                db.delete(TABLE_SETTINGS, "packageName = ?", new String [] { packageName });
+                            int uid = cursor.getInt(0);
+                            if (!apps.contains(uid)) {
+                                db.delete(TABLE_SETTINGS, "uid = ?", new String [] { Integer.toString(uid) });
                             }
                         } while (cursor.moveToNext());
                     }
@@ -1416,8 +1398,8 @@ public final class PrivacyPersistenceAdapter {
                     // delete obsolete settings directories
                     File settingsDir = new File(SETTINGS_DIRECTORY);
                     for (File packageDir : settingsDir.listFiles()) {
-                        String packageName = packageDir.getName();
-                        if (!apps.contains(packageName)) { // remove package dir if no such
+                        String uid = packageDir.getName();
+                        if (!apps.contains(uid)) { // remove package dir if no such
                             // app installed
                             try {
                                 deleteRecursive(packageDir);
@@ -1427,7 +1409,7 @@ public final class PrivacyPersistenceAdapter {
                         }
                     }
 
-                    for (Entry<String, PrivacySettings> entry : sCache.entrySet()) {
+                    for (Entry<Integer, PrivacySettings> entry : sCache.entrySet()) {
                         if (!apps.contains(entry.getKey())) {
                             sCache.remove(entry.getKey());
                         }

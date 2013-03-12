@@ -31,7 +31,6 @@ import android.privacy.IPrivacySettings;
 import android.privacy.PrivacySettings;
 import android.privacy.PrivacySettingsManager;
 
-import android.content.Context;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 
@@ -56,51 +55,26 @@ public final class MicrophoneInputStream extends InputStream {
     private static final int IS_ALLOWED = -1;
     private static final int IS_NOT_ALLOWED = -2;
     private static final int GOT_ERROR = -3;
-    
+
     private static final String PRIVACY_TAG = "PM,MicrophoneInputStream";
-    private Context context;
-    
-    private PrivacySettingsManager pSetMan;
-    
+
+    private PrivacySettingsManager mPrvSvc;
+
     private boolean privacyMode = false;
-    
+
     private IPackageManager mPm;
-    
+
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    
+
 
     private final static String TAG = "MicrophoneInputStream";
     private int mAudioRecord = 0;
     private byte[] mOneByte = new byte[1];
-    
+
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //BEGIN PRIVACY
-    /**
-     * {@hide}
-     * @return package names of current process which is using this object or null if something went wrong
-     */
-    private String[] getPackageName(){
-    	try{
-    		if(mPm != null){
-        		int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-        	}
-    		else{
-    			mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-    			int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-    		}
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
-    		return null;
-    	}
-    }
     /**
      * {@hide}
      * This method sets up all variables which are needed for privacy mode! It also writes to privacyMode, if everything was successfull or not! 
@@ -108,17 +82,16 @@ public final class MicrophoneInputStream extends InputStream {
      * CALL THIS METHOD IN CONSTRUCTOR!
      */
     private void initiate(){
-    	try{
-    		context = null;
-    		if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-       	 	privacyMode = true;
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
-    		privacyMode = false;
-    	}
+        try{
+            if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
+            mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+            privacyMode = true;
+        }
+        catch(Exception e){
+            e.printStackTrace();
+            Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
+            privacyMode = false;
+        }
     }
     /**
      * {@hide}
@@ -127,44 +100,23 @@ public final class MicrophoneInputStream extends InputStream {
      */
     private int checkIfPackagesAllowed(){
         try{
-            //boolean isAllowed = false;
-            if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-            String[] package_names = getPackageName();
-            if (package_names == null) {
-                Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
-                return GOT_ERROR;
-            }
+            int uid = Process.myUid();
+            if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
             IPrivacySettings pSet = null;
-            for(int i=0;i < package_names.length; i++){
-                pSet = pSetMan.getSettingsSafe(package_names[i]);
-                if(pSet != null && (PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) != IPrivacySettings.REAL)){ //if pSet is null, we allow application to access to mic
-                    return IS_NOT_ALLOWED;
-                }
-                pSet = null;
+            pSet = mPrvSvc.getSettingsSafe(uid);
+            if(PrivacySettings.getOutcome(pSet.getRecordAudioSetting()) == IPrivacySettings.REAL){
+                return IS_ALLOWED;
+            } else {
+                return IS_NOT_ALLOWED;
             }
-            return IS_ALLOWED;
         } catch (Exception e){
-            Log.e(PRIVACY_TAG,"MicrophoneInputStream:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
+            Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
             return GOT_ERROR;
         }
     }
-    
-    
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing microphone.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing microphone.");
-	}
-    }
+
+
+
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -181,24 +133,17 @@ public final class MicrophoneInputStream extends InputStream {
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //BEGIN PRIVACY
+        int uid = Process.myUid();
         if(!privacyMode){
             initiate();
         }
 
-        String packageName[] = getPackageName();
-
         switch (checkIfPackagesAllowed()) {
         case IS_ALLOWED:
-            dataAccess(true);
-            if(packageName != null && pSetMan != null) {
-                pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
-            }
+            mPrvSvc.notification(uid, PrivacySettings.REAL, PrivacySettings.DATA_RECORD_AUDIO, null);
             break;
         default:
-            dataAccess(false);
-            if(packageName != null && pSetMan != null) {
-                pSetMan.notification(packageName[0], PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null);
-            }
+            mPrvSvc.notification(uid, PrivacySettings.EMPTY, PrivacySettings.DATA_RECORD_AUDIO, null);
             throw new IOException("AudioRecord constructor failed - busy?");
         }
         //END PRIVACY
@@ -226,14 +171,14 @@ public final class MicrophoneInputStream extends InputStream {
         if (mAudioRecord == 0) throw new IllegalStateException("not open");
         return AudioRecordRead(mAudioRecord, b, 0, b.length);
     }
-    
+
     @Override
     public int read(byte[] b, int offset, int length) throws IOException {
         if (mAudioRecord == 0) throw new IllegalStateException("not open");
         // TODO: should we force all reads to be a multiple of the sample size?
         return AudioRecordRead(mAudioRecord, b, offset, length);
     }
-    
+
     /**
      * Closes this stream.
      */
@@ -251,7 +196,7 @@ public final class MicrophoneInputStream extends InputStream {
             }
         }
     }
-    
+
     @Override
     protected void finalize() throws Throwable {
         if (mAudioRecord != 0) {
@@ -259,7 +204,7 @@ public final class MicrophoneInputStream extends InputStream {
             throw new IOException("someone forgot to close MicrophoneInputStream");
         }
     }
-    
+
     //
     // AudioRecord JNI interface
     //

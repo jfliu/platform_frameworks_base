@@ -169,24 +169,25 @@ public class PhoneStateListener {
     public static final int LISTEN_OTASP_CHANGED                            = 0x00000200;
 
     // BEGIN privacy-added
-    private Context context;
-    private String packageName;
-    private int uid;
+    // SM: Storing these details rather than checking them on the fly is a potential security hazard, *if* the class is instantiated from client code (i.e. reflection attack) 
+    private Context mContext;
+    private String mPackageName;
+    private int mUid;
     private final static String TAG = "PhoneStateListener"; 
     
     /** {@hide} */
     public void setContext(Context context) {
-        this.context = context;
+        this.mContext = context;
     }
     
     /** {@hide} */
     public void setPackageName(String packageName) {
-        this.packageName = packageName;
+        this.mPackageName = packageName;
     }
     
     /** {@hide} */
     public void setUid(int uid) {
-        this.uid = uid;
+        this.mUid = uid;
     }    
     // END privacy-added
  
@@ -352,17 +353,17 @@ public class PhoneStateListener {
             CellLocation location = CellLocation.newFromBundle(bundle);
             //Message.obtain(mHandler, LISTEN_CELL_LOCATION, 0, 0, location).sendToTarget();
             // BEGIN privacy-modified
-            PrivacySettingsManager pSetMan = PrivacySettingsManager.getPrivacyService(context);
+            PrivacySettingsManager mPrvSvc = PrivacySettingsManager.getPrivacyService();
             
-            IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+            IPrivacySettings pSet = mPrvSvc.getSettingsSafe(mUid);
             if (PrivacySettings.getOutcome(pSet.getLocationNetworkSetting()) != PrivacySettings.REAL) {
                 // simply block the method call, since simulating cell location is not feasible
                 //output = "[no output]";
-                pSetMan.notification(packageName, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null);            
+                mPrvSvc.notification(mUid, pSet.getLocationNetworkSetting(), PrivacySettings.DATA_LOCATION_NETWORK, null);            
             } else {
                 //output = location.toString();
                 Message.obtain(mHandler, LISTEN_CELL_LOCATION, 0, 0, location).sendToTarget();
-                pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_LOCATION_NETWORK, null);            
+                mPrvSvc.notification(mUid, PrivacySettings.REAL, PrivacySettings.DATA_LOCATION_NETWORK, null);            
                 }
             // END privacy-modified
         }
@@ -374,17 +375,17 @@ public class PhoneStateListener {
             // **SM: need to check this: I'm not sure that the appropriate behaviour for no context is to allow 
             // only take action if an incoming phone number is actually transmitted
             if (incomingNumber != null && !incomingNumber.isEmpty()) {
-                PrivacySettingsManager pSetMan = pSetMan = PrivacySettingsManager.getPrivacyService(context);
+                PrivacySettingsManager mPrvSvc = mPrvSvc = PrivacySettingsManager.getPrivacyService();
                 String output = "";
-                IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
-                if (pSet != null && PrivacySettings.getOutcome(pSet.getIncomingCallsSetting()) != PrivacySettings.REAL) {
+                IPrivacySettings pSet = mPrvSvc.getSettingsSafe(mUid);
+                if (PrivacySettings.getOutcome(pSet.getIncomingCallsSetting()) != PrivacySettings.REAL) {
                     Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, output).sendToTarget();
 //                    Log.d(TAG, "onCallStateChanged BLOCK - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + output);
-                    pSetMan.notification(packageName, PrivacySettings.EMPTY, PrivacySettings.DATA_INCOMING_CALL, output);
+                    mPrvSvc.notification(mUid, PrivacySettings.EMPTY, PrivacySettings.DATA_INCOMING_CALL, output);
                 } else {
                     Message.obtain(mHandler, LISTEN_CALL_STATE, state, 0, incomingNumber).sendToTarget();
 //                    Log.d(TAG, "onCallStateChanged REAL 1 - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + incomingNumber);
-                    pSetMan.notification(packageName, PrivacySettings.REAL, PrivacySettings.DATA_INCOMING_CALL, incomingNumber);
+                    mPrvSvc.notification(mUid, PrivacySettings.REAL, PrivacySettings.DATA_INCOMING_CALL, incomingNumber);
                 }
             } else {
 //                Log.d(TAG, "onCallStateChanged REAL 2 - package:" + packageName + " uid:" + uid + " state:" + state + " output: " + incomingNumber);

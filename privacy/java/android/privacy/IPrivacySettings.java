@@ -69,11 +69,17 @@ public interface IPrivacySettings  {
     public static final byte ERROR_REAL = 5;
 
     /**
+     * Default for when there are no settings: deny all (not currently used)
+     */
+    public static final byte DEFAULT_EMPTY = 6;
+
+    
+    /**
      * Default for when there are no settings: allow all
      */
-    public static final byte DEFAULT_REAL = 6;
+    public static final byte DEFAULT_REAL = 7;
 
-    public static final byte ERROR = 7;
+    public static final byte ERROR = 8;
     
     
     

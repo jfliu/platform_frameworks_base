@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.privacy.PrivacyServiceDisconnectedException;
 import android.privacy.utilities.PrivacyDebugger;
 
 /**
@@ -73,40 +74,54 @@ public final class PrivacySettingsManager {
     }
     
     
-    @Deprecated
-    public IPrivacySettings getSettings(String packageName, int uid)
-            throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
-        return getSettings(packageName);
-    }
-
-    
-    public IPrivacySettings getSettingsSafe(String packageName) {
+    /**
+     * 'Safely' get settings for a UID
+     * This manages the possible exceptions from the service, and from failing to connect to the service.
+     * If an error occurs, then an 'error' object is returned (via getOnErrorObject). If there are no settings (i.e. settings
+     * are null) then a 'default allow' object is returned.
+     * @param uid  UID for which to get settings
+     * @return PrivacySettings if present, PrivacySettingsDefault if not, PrivacySettingsError if error occurs.
+     */
+    public IPrivacySettings getSettingsSafe(int uid) {
         try {
-            return getSettings(packageName);
-        } catch (PrivacyServiceException e) {
-            PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettingsSafe: Exception occured obtaining settings - resorting to onError object", e);
-            return getOnErrorObject(packageName);
-        }
-    }
+            IPrivacySettings settings = getSettings(uid);
 
-    public IPrivacySettings getSettings(String packageName)
-            throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
-        this.connectService();
-        try {
-            IPrivacySettings settings = service.getSettings(packageName);
             // Providing the 'default' settings should be in the service itself, but I have it here until I work out a good implementation approach
             if (settings == null) {
-                return new PrivacySettingsDefaultAllow();
+                return new PrivacySettingsDefault(IPrivacySettings.REAL);
             } else {
                 return settings;
             }
+            
+        } catch (PrivacyServiceException e) {
+            PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettingsSafe: Exception occured obtaining settings - resorting to onError object", e);
+            return getOnErrorObject();
+        }
+    }
+    
+
+    /**
+     * Get settings for a UID
+     * Attempt to get settings for the provided UID from the privacy service. If an error occurs with the service, a
+     * PrivacyServiceException is thrown.
+     * @param uid  UID for which to get settings
+     * @return PrivacySettings if present, null otherwise
+     * @throws {@link PrivacyServiceException}
+     * @throws {@link PrivacyServiceInvalidException}
+     * @throws {@link PrivacyServiceDisconnectedException}
+     */
+    public IPrivacySettings getSettings(int uid) 
+            throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
+        this.connectService();
+        try {
+            return service.getSettings(uid);
         } catch (RemoteException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:getSettings: Exception occurred in the remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the remote privacy service", e);
         }
     }
-
-
+    
+    
     public boolean saveSettings(PrivacySettings settings)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
@@ -119,11 +134,18 @@ public final class PrivacySettingsManager {
     }
 
 
-    public boolean deleteSettings(String packageName)
+    /**
+     * Delete settings for a UID
+     * Delete all settings for the provided UID from the privacy service.
+     * If an error occurs with the service, a PrivacyServiceException is thrown.
+     * @param uid  UID of app/shared user to delete
+     * @return PrivacySettings if present, null otherwise
+     */
+    public boolean deleteSettings(int uid)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
         try {
-            return service.deleteSettings(packageName);
+            return service.deleteSettings(uid);
         } catch (RemoteException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:deleteSettings: Exception occurred in the remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the remote privacy service", e);
@@ -131,26 +153,10 @@ public final class PrivacySettingsManager {
     }
 
 
-    @Deprecated
-    public boolean deleteSettings(String packageName, int uid)
-            throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
-        return deleteSettings(packageName);
-    }
-
-    @Deprecated
-    public void notification(String packageName, int uid, byte accessMode, String dataType, String output, PrivacySettings pSet) {
-        notification(packageName, accessMode, dataType, output);
-    }
-
-    @Deprecated
-    public void notification(String packageName, byte accessMode, String dataType, String output, PrivacySettings pSet) {
-        notification(packageName, accessMode, dataType, output);
-    }
-
-    public void notification(String packageName, byte accessMode, String dataType, String output) {
+    public void notification(int uid, byte accessMode, String dataType, String output) {
         try {
             this.connectService();
-            service.notification(packageName, accessMode, dataType, output);
+            service.notification(uid, accessMode, dataType, output);
         } catch (PrivacyServiceException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:notification: Exception occurred connecting to the remote service", e);
         } catch (RemoteException e) {
@@ -170,12 +176,12 @@ public final class PrivacySettingsManager {
         }
     }
 
-    public void addObserver(String packageName)
+    public void addObserver(int uid)
             throws PrivacyServiceDisconnectedException, PrivacyServiceInvalidException, PrivacyServiceException {
         this.connectService();
 
         try {
-            service.addObserver(packageName);
+            service.addObserver(uid);
         } catch (RemoteException e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:addObserver: Exception occurred in the remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the remote privacy service", e);
@@ -416,18 +422,18 @@ public final class PrivacySettingsManager {
         }
     }
     
-    private IPrivacySettings getOnErrorObject(String packageName) {
+    private IPrivacySettings getOnErrorObject() {
         String onErrorSetting;
         try {
             onErrorSetting = readExternalSetting(PrivacyPersistenceAdapter.ACTION_ON_ERROR_SETTING);
             if (onErrorSetting.equals("allow")) {
-                return new PrivacySettingsErrorAllow();
+                return new PrivacySettingsError(IPrivacySettings.REAL);
             } else {
-                return new PrivacySettingsErrorDeny();
+                return new PrivacySettingsError(IPrivacySettings.ERROR);
             }
         } catch (Exception e) {
             PrivacyDebugger.e(TAG, "PrivacySettingsManager:getOnErrorObject: exception occurred getting on error setting", e);
-            return new PrivacySettingsErrorDeny(); 
+            return new PrivacySettingsError(IPrivacySettings.ERROR); 
         }
     }
     

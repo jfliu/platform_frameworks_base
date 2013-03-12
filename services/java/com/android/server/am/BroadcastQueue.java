@@ -873,14 +873,11 @@ public class BroadcastQueue {
     private void enforcePrivacyPermission(Object nextReceiver, BroadcastRecord r) {
         if (r != null && r.intent != null && r.intent.getAction() != null) {
             
-            String packageName = null;
             int uid = -1;
             try { // try to get intent receiver information
                 if (nextReceiver instanceof BroadcastFilter) {
-                    packageName = ((BroadcastFilter) nextReceiver).receiverList.app.info.packageName;
                     uid = ((BroadcastFilter) nextReceiver).receiverList.app.info.uid;
                 } else if (nextReceiver instanceof ResolveInfo) {
-                    packageName = ((ResolveInfo) nextReceiver).activityInfo.applicationInfo.packageName;
                     uid = ((ResolveInfo) nextReceiver).activityInfo.applicationInfo.uid;
                 }
             } catch (Exception e) {
@@ -889,9 +886,7 @@ public class BroadcastQueue {
                 return;
             }
             
-            if (packageName != null && uid != -1) {
-                PrivacyActivityManagerService.enforcePrivacyPermission(packageName, uid, r.intent, null, r.receivers.size());
-            }
+            PrivacyActivityManagerService.enforcePrivacyPermission(uid, r.intent, r.receivers.size());
         }
     }
     // END privacy-added

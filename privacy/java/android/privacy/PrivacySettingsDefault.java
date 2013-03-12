@@ -27,31 +27,45 @@ import java.util.Random;
  * @author Stefan Thiele (CollegeDev)
  * {@hide} 
  */
-public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
+public final class PrivacySettingsDefault implements IPrivacySettings {
 
+    private byte mResult;
+    
+    public PrivacySettingsDefault(byte type) {
+        switch (type) {
+            case IPrivacySettings.REAL:
+                this.mResult = IPrivacySettings.DEFAULT_REAL;
+                break;
+            case IPrivacySettings.CUSTOM:
+            case IPrivacySettings.RANDOM:
+            case IPrivacySettings.EMPTY:
+                this.mResult = IPrivacySettings.DEFAULT_EMPTY;
+        }
+    }
+    
     @Override
     public byte getSwitchWifiStateSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getForceOnlineState() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSendMmsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSwitchConnectivitySetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getAndroidIdSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     /**
@@ -64,47 +78,47 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getWifiInfoSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getIpTableProtectSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getIccAccessSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getAddOnManagementSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSmsSendSetting(){
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getPhoneCallSetting(){
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getRecordAudioSetting(){
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getCameraSetting(){
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getDeviceIdSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -114,7 +128,7 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getLine1NumberSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -124,7 +138,7 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getLocationGpsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -139,7 +153,7 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getLocationNetworkSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -154,17 +168,17 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getNetworkInfoSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSimInfoSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSimSerialNumberSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -174,7 +188,7 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getSubscriberIdSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
@@ -184,62 +198,62 @@ public final class PrivacySettingsDefaultAllow implements IPrivacySettings {
 
     @Override
     public byte getAccountsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getAccountsAuthTokensSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getOutgoingCallsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getIncomingCallsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getContactsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getCalendarSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getMmsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSmsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getCallLogSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getBookmarksSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getSystemLogsSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override
     public byte getIntentBootCompletedSetting() {
-        return DEFAULT_REAL;
+        return mResult;
     }
 
     @Override

@@ -73,7 +73,8 @@ import android.graphics.BitmapFactory;
  * {@link android.Manifest.permission#CAMERA} permission in your Android
  * Manifest. Also be sure to include the
  * <a href="{@docRoot}guide/topics/manifest/uses-feature-element.html">&lt;uses-feature></a>
- * manifest element to declare camera features used by your application.
+ * manifest element to de
+ * clare camera features used by your application.
  * For example, if you use the camera and auto-focus feature, your Manifest
  * should include the following:</p>
  * <pre> &lt;uses-permission android:name="android.permission.CAMERA" />
@@ -196,7 +197,7 @@ public class Camera {
 
     private Context context;
     
-    private PrivacySettingsManager pSetMan;
+    private PrivacySettingsManager mPrvSvc;
     
     private boolean privacyMode = false;
     
@@ -208,30 +209,7 @@ public class Camera {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //BEGIN PRIVACY
-    /**
-     * {@hide}
-     * @return package names of current process which is using this object or null if something went wrong
-     */
-    private String[] getPackageName(){
-    	try{
-    		if(mPm != null){
-        		int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-        	}
-    		else{
-    			mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
-    			int uid = Process.myUid();
-        		String[] package_names = mPm.getPackagesForUid(uid);
-        		return package_names;
-    		}
-    	}
-    	catch(Exception e){
-    		e.printStackTrace();
-    		Log.e(PRIVACY_TAG,"something went wrong with getting package name");
-    		return null;
-    	}
-    }
+
     /**
      * This method returns the fake image which should be in system folder! 
      * @return byte array of jpeg fake image or null if something went wrong
@@ -265,11 +243,10 @@ public class Camera {
     private void initiate(){
     	try{
     		context = null;
-    		if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
+    		if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
     		mPm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
        	 	privacyMode = true;
-    	}
-    	catch(Exception e){
+    	} catch(Exception e) {
     		e.printStackTrace();
     		Log.e(PRIVACY_TAG, "Something went wrong with initalize variables");
     		privacyMode = false;
@@ -283,42 +260,19 @@ public class Camera {
      */
     private int checkIfPackagesAllowed(){
     	try{
-    		//boolean isAllowed = false;
-    	    if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
-    		String[] package_names = getPackageName();
-    		if (package_names == null) {
-                Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: return GOT_ERROR, because package_names are NULL");
-                return GOT_ERROR;
-    		}
+            int uid = Process.myUid();
+    	    if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
 			IPrivacySettings pSet = null;
-        	for(int i=0;i < package_names.length; i++){
-        		pSet = pSetMan.getSettingsSafe(package_names[i]);
-        		if(pSet != null && PrivacySettings.getOutcome(pSet.getCameraSetting()) != IPrivacySettings.REAL){ //if pSet is null, we allow application to access to mic
-        			return IS_NOT_ALLOWED;
-        		}
-        		pSet = null;
+			pSet = mPrvSvc.getSettingsSafe(uid);
+			if(PrivacySettings.getOutcome(pSet.getCameraSetting()) == IPrivacySettings.REAL){
+			    return IS_ALLOWED;
+        	} else {
+        	    return IS_NOT_ALLOWED;
         	}
-	    	return IS_ALLOWED;
     	} catch (Exception e){
     		Log.e(PRIVACY_TAG,"Camera:checkIfPackagesAllowed: Got exception in checkIfPackagesAllowed", e);
     		return GOT_ERROR;
     	}
-    }
-    
-    /**
-     * Loghelper method, true = access successful, false = blocked access
-     * {@hide}
-     */
-    private void dataAccess(boolean success){
-	String package_names[] = getPackageName();
-	if(success && package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Allowed Package: -" + package_names[i] + "- accessing camera.");
-	}
-	else if(package_names != null){
-		for(int i=0;i<package_names.length;i++)
-			Log.i(PRIVACY_TAG,"Blocked Package: -" + package_names[i] + "- accessing camera.");
-	}
     }
     //END PRIVACY
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -928,30 +882,22 @@ public class Camera {
     	        initiate();
     	    }
 
-    	    String packageName[] = getPackageName();
+    	    int uid = Process.myUid();
+
     	    try {
     	        switch (checkIfPackagesAllowed()) {
     	        case IS_ALLOWED:
     	            access = true;
-    	            dataAccess(true);
-    	            if(packageName != null && pSetMan != null) {
-    	                pSetMan.notification(packageName[0], PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null);
-    	            }
+    	            mPrvSvc.notification(uid, PrivacySettings.REAL, PrivacySettings.DATA_CAMERA, null);
     	            break;
     	        default:
     	            access = false;
-    	            dataAccess(false);
-    	            if(packageName != null && pSetMan != null) {
-    	                pSetMan.notification(packageName[0], PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null);
-    	            }
+    	            mPrvSvc.notification(uid, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null);
     	            break;
     	        }
     	    } catch (Exception e) {
     	        access = false;
-    	        dataAccess(false);
-    	        if(packageName != null && pSetMan != null) {
-    	            pSetMan.notification(packageName[0], PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null);
-    	        }
+    	        mPrvSvc.notification(uid, PrivacySettings.EMPTY, PrivacySettings.DATA_CAMERA, null);
     	    }
 
             switch(msg.what) {

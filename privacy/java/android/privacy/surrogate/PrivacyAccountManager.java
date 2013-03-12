@@ -44,20 +44,19 @@ public final class PrivacyAccountManager extends AccountManager {
 
     private static final String TAG = "PrivacyAccountManager";
 
-    private Context context;
-
-    private PrivacySettingsManager pSetMan;
+    private Context mContext;
+    private PrivacySettingsManager mPrvSvc;
 
     /** {@hide} */
     public PrivacyAccountManager(Context context, IAccountManager service) {
         super(context, service);
-        this.context = context;
+        this.mContext = context;
     }
 
     /** {@hide} */
     public PrivacyAccountManager(Context context, IAccountManager service, Handler handler) {
         super(context, service, handler);
-        this.context = context;
+        this.mContext = context;
     }
 
     /**
@@ -66,44 +65,42 @@ public final class PrivacyAccountManager extends AccountManager {
 
     @Override
     public Account[] getAccounts() {
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         Account[] output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsSetting()) != IPrivacySettings.REAL) {
+        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsSetting()) == IPrivacySettings.REAL) {
+            output_label = "[real value]";
+            output = super.getAccounts();
+        } else {
             output_label = "[empty accounts list]";
             output = new Account[0];
-            pSetMan.notification(packageName, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);
-        } else {
-            output_label = "[real value]";
-            output = super.getAccounts(); 
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_ACCOUNTS_LIST, null);
         }
+        mPrvSvc.notification(uid, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);
+        
         return output;
     }
 
     @Override
     public Account[] getAccountsByType(String type) {
-        String packageName = context.getPackageName();
-
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         Account[] output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsSetting()) != IPrivacySettings.REAL) {
-            output_label = "[empty accounts list]";
-            output = new Account[0];
-            pSetMan.notification(packageName, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);
-        } else {
+        if (PrivacySettings.getOutcome(pSet.getAccountsSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.getAccountsByType(type);
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_ACCOUNTS_LIST, null);
+        } else {
+            output_label = "[empty accounts list]";
+            output = new Account[0];
         }
+        mPrvSvc.notification(uid, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);
 
         return output;
     }
@@ -111,22 +108,21 @@ public final class PrivacyAccountManager extends AccountManager {
     @Override
     public AccountManagerFuture<Boolean> hasFeatures(Account account, String[] features,
             AccountManagerCallback<Boolean> callback, Handler handler) {
-        String packageName = context.getPackageName();
-
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         AccountManagerFuture<Boolean> output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);        
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsSetting()) != IPrivacySettings.REAL) {
-            output_label = "[false]";
-            output = new PrivacyAccountManagerFuture<Boolean>(false);
-            pSetMan.notification(packageName, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);      
-        } else {
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+        
+        if (PrivacySettings.getOutcome(pSet.getAccountsSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.hasFeatures(account, features, callback, handler);
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_ACCOUNTS_LIST, null);            
+        } else {
+            output_label = "[false]";
+            output = new PrivacyAccountManagerFuture<Boolean>(false);
         }
+        mPrvSvc.notification(uid, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);      
 
         return output;
     }
@@ -134,23 +130,21 @@ public final class PrivacyAccountManager extends AccountManager {
     @Override
     public AccountManagerFuture<Account[]> getAccountsByTypeAndFeatures(String type, String[] features,
             AccountManagerCallback<Account[]> callback, Handler handler) {
-
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         AccountManagerFuture<Account[]> output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);       
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);       
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsSetting()) != IPrivacySettings.REAL) {
-            output_label = "[false]";
-            output = new PrivacyAccountManagerFuture<Account[]>(new Account[0]);
-            pSetMan.notification(packageName, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);      
-        } else {
+        if (PrivacySettings.getOutcome(pSet.getAccountsSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.getAccountsByTypeAndFeatures(type, features, callback, handler);
-            pSetMan.notification(packageName,IPrivacySettings.REAL, IPrivacySettings.DATA_ACCOUNTS_LIST, null);            
+        } else {
+            output_label = "[false]";
+            output = new PrivacyAccountManagerFuture<Account[]>(new Account[0]);
         }
+        mPrvSvc.notification(uid, pSet.getAccountsSetting(), IPrivacySettings.DATA_ACCOUNTS_LIST, null);      
 
         return output;
     }
@@ -162,19 +156,16 @@ public final class PrivacyAccountManager extends AccountManager {
     @Override
     public String blockingGetAuthToken(Account account, String authTokenType, boolean notifyAuthFailure)
             throws OperationCanceledException, IOException, AuthenticatorException {
-
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output = null;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);    
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) != IPrivacySettings.REAL) {
-            pSetMan.notification(packageName, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
-        } else {
+        if (PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) == IPrivacySettings.REAL) {
             output = super.blockingGetAuthToken(account, authTokenType, notifyAuthFailure);
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_AUTH_TOKENS, null);      
         }
+        mPrvSvc.notification(uid, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
 
         return output;
     }
@@ -182,22 +173,21 @@ public final class PrivacyAccountManager extends AccountManager {
     @Override
     public AccountManagerFuture<Bundle> getAuthToken(Account account, String authTokenType, boolean notifyAuthFailure,
             AccountManagerCallback<Bundle> callback, Handler handler) {
-
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         AccountManagerFuture<Bundle> output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);   
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) != IPrivacySettings.REAL) {
-            output_label = "[empty]";
-            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
-        } else {
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);
+        
+        if (PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.getAuthToken(account, authTokenType, notifyAuthFailure, callback, handler);
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_AUTH_TOKENS, null);      
+        } else {
+            output_label = "[empty]";
+            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
         }
+        mPrvSvc.notification(uid, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
 
         return output;
     }
@@ -205,23 +195,21 @@ public final class PrivacyAccountManager extends AccountManager {
     @Override
     public AccountManagerFuture<Bundle> getAuthToken(Account account, String authTokenType, Bundle options,
             Activity activity, AccountManagerCallback<Bundle> callback, Handler handler) {
-
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         AccountManagerFuture<Bundle> output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);   
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);   
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) != IPrivacySettings.REAL) {
-            output_label = "[empty]";
-            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
-        } else {
+        if (PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.getAuthToken(account, authTokenType, options, activity, callback, handler);
-            pSetMan.notification(packageName, IPrivacySettings.REAL, IPrivacySettings.DATA_AUTH_TOKENS, null);      
+        } else {
+            output_label = "[empty]";
+            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
         }
+        mPrvSvc.notification(uid, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
 
         return output;
     }
@@ -234,23 +222,22 @@ public final class PrivacyAccountManager extends AccountManager {
     public AccountManagerFuture<Bundle> getAuthTokenByFeatures(String accountType, String authTokenType,
             String[] features, Activity activity, Bundle addAccountOptions, Bundle getAuthTokenOptions,
             AccountManagerCallback<Bundle> callback, Handler handler) {
-        String packageName = context.getPackageName();
+        int uid = mContext.getApplicationInfo().uid;
         String output_label;
         AccountManagerFuture<Bundle> output;
 
-        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService(context);
-        IPrivacySettings pSet = pSetMan.getSettingsSafe(packageName);   
+        if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService(mContext);
+        IPrivacySettings pSet = mPrvSvc.getSettingsSafe(uid);   
 
-        if (pSet != null && PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) != IPrivacySettings.REAL) {
-            output_label = "[empty]";
-            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
-            pSetMan.notification(packageName, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
-        } else {
+        if (PrivacySettings.getOutcome(pSet.getAccountsAuthTokensSetting()) == IPrivacySettings.REAL) {
             output_label = "[real value]";
             output = super.getAuthTokenByFeatures(accountType, authTokenType, features, activity, addAccountOptions,
                     getAuthTokenOptions, callback, handler);
-            pSetMan.notification(packageName,IPrivacySettings.REAL, IPrivacySettings.DATA_AUTH_TOKENS, null);      
+        } else {
+            output_label = "[empty]";
+            output = new PrivacyAccountManagerFuture<Bundle>(new Bundle());
         }
+        mPrvSvc.notification(uid, pSet.getAccountsAuthTokensSetting(), IPrivacySettings.DATA_AUTH_TOKENS, null);      
 
         return output;
     }

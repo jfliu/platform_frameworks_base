@@ -26,26 +26,25 @@ public final class PrivacyFileObserver extends FileObserver {
 	public static final int PACKAGE_PATH_INDEX = 3;
 	public static final int SETTINGS_TYPE_INDEX = PACKAGE_PATH_INDEX + 1;
 
-	public String absolutePath;
-	private PrivacySettingsManagerService pSetManServ;
-
-	public HashMap<String, PrivacyFileObserver> children;
+	String mAbsolutePath;
+	private PrivacySettingsManagerService mPrvSvc;
+	HashMap<String, PrivacyFileObserver> mChildren;
 
 	public PrivacyFileObserver(String path,
-			PrivacySettingsManagerService pSetManServ) {
+			PrivacySettingsManagerService service) {
 		super(path, FileObserver.ALL_EVENTS);
-		this.absolutePath = path;
-		this.pSetManServ = pSetManServ;
-
-		this.children = new HashMap<String, PrivacyFileObserver>();
-		File thisFile = new File(absolutePath);
+		this.mAbsolutePath = path;
+		this.mPrvSvc = service;
+		this.mChildren = new HashMap<String, PrivacyFileObserver>();
+		File thisFile = new File(mAbsolutePath);
+		
 		if (thisFile.isDirectory()) {
 			File[] subfiles = thisFile.listFiles();
 			for (File file : subfiles) {
 				String observePath = file.getAbsolutePath();
 				PrivacyFileObserver child = new PrivacyFileObserver(
-						observePath, pSetManServ);
-				children.put(observePath, child);
+						observePath, service);
+				mChildren.put(observePath, child);
 				// don't watch directories, only the settings files
 				if (file.isFile())
 					child.startWatching();
@@ -58,17 +57,18 @@ public final class PrivacyFileObserver extends FileObserver {
 	public void onEvent(int event, String path) {
 		if ((FileObserver.ACCESS & event) != 0) { // data was read from a file
 		// PrivacyDebugger.d(TAG, "onEvent - file accessed: " + absolutePath);
-			StringTokenizer tokenizer = new StringTokenizer(absolutePath, "/");
+			StringTokenizer tokenizer = new StringTokenizer(mAbsolutePath, "/");
 			for (int i = 0; i < PACKAGE_PATH_INDEX
 					&& tokenizer.hasMoreElements(); i++) {
 				tokenizer.nextToken();
 			}
 
 			// get the package and UID of accessing application
-			String packageName = tokenizer.nextToken();
+			int uid = Integer.parseInt(tokenizer.nextToken());
 			String settingsType = null;
-			if (tokenizer.hasMoreElements())
+			if (tokenizer.hasMoreElements()) {
 				settingsType = tokenizer.nextToken();
+			}
 			// int uid = 0;
 			// try {
 			// uid = Integer.parseInt(tokenizer.nextToken());
@@ -82,15 +82,15 @@ public final class PrivacyFileObserver extends FileObserver {
 			try {
 				if (settingsType != null
 						&& settingsType.equals("ipTableProtectSetting")) {
-					PrivacySettings pSet = pSetManServ.getSettings(packageName);
-					pSetManServ.notification(packageName,
+					PrivacySettings pSet = mPrvSvc.getSettings(uid);
+					mPrvSvc.notification(uid,
 							pSet.getIpTableProtectSetting(),
-							PrivacySettings.DATA_IP_TABLES, null);
+							IPrivacySettings.DATA_IP_TABLES, null);
 				} else {
-					PrivacySettings pSet = pSetManServ.getSettings(packageName);
-					pSetManServ.notification(packageName,
+					PrivacySettings pSet = mPrvSvc.getSettings(uid);
+					mPrvSvc.notification(uid,
 							pSet.getSystemLogsSetting(),
-							PrivacySettings.DATA_SYSTEM_LOGS, null);
+							IPrivacySettings.DATA_SYSTEM_LOGS, null);
 				}
 			} catch (Exception e) {
 				// nothing here
@@ -100,14 +100,14 @@ public final class PrivacyFileObserver extends FileObserver {
 	}
 
 	public void addObserver(String relativePath) {
-		String observePath = absolutePath + "/" + relativePath;
+		String observePath = mAbsolutePath + "/" + relativePath;
 		// remove existing observer(s) if any
-		children.remove(observePath); // child observers should be destroyed at
+		mChildren.remove(observePath); // child observers should be destroyed at
 										// next GC
 		// create new observer(s)
 		PrivacyFileObserver child = new PrivacyFileObserver(observePath,
-				pSetManServ);
-		children.put(observePath, child);
+				mPrvSvc);
+		mChildren.put(observePath, child);
 	}
 
 	@Override

@@ -15,12 +15,14 @@ package android.privacy;
 import android.R.integer;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.privacy.PrivacyPersistenceAdapter;
 import android.privacy.utilities.PrivacyDebugger;
 
 import java.io.File;
+import java.security.InvalidParameterException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,17 +92,17 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         }
     }
 
-    public PrivacySettings getSettings(String packageName) {
+    public PrivacySettings getSettings(int uid) {
         // PrivacyDebugger.d(TAG, "getSettings - " + packageName);
         if (mEnabled || mContext.getPackageName().equals("com.privacy.pdroid")
                 || mContext.getPackageName().equals("com.privacy.pdroid.Addon")
                 || mContext.getPackageName().equals("com.android.privacy.pdroid.extension"))
             // we have to add our addon package here, to get real settings
-            return mPersistenceAdapter.getSettings(packageName);
+            return mPersistenceAdapter.getSettings(uid);
         else
             return null;
     }
-
+    
     public boolean saveSettings(PrivacySettings settings) throws RemoteException {
         PrivacyDebugger.d(TAG, "saveSettings - checking if caller (UID: " + Binder.getCallingUid()
                 + ") has sufficient permissions");
@@ -111,24 +113,26 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         
         PrivacyDebugger.d(TAG, "saveSettings - " + settings);
         boolean result = mPersistenceAdapter.saveSettings(settings);
-        if (result == true)
-            sObserver.addObserver(settings.getPackageName());
+        if (result == true) {
+            sObserver.addObserver(Integer.toString(settings.getUid()));
+        }
         return result;
     }
 
-    public boolean deleteSettings(String packageName) throws RemoteException {
+    
+    public boolean deleteSettings(int uid) throws RemoteException {
         // Why are we letting the system delete package settings??
         if (Binder.getCallingUid() != 1000) {
             checkCallerCanWriteOrThrow();
         }
 
-        boolean result = mPersistenceAdapter.deleteSettings(packageName);
+        boolean result = mPersistenceAdapter.deleteSettings(uid);
         // update observer if directory exists
-        String observePath = PrivacyPersistenceAdapter.SETTINGS_DIRECTORY + "/" + packageName;
+        String observePath = PrivacyPersistenceAdapter.SETTINGS_DIRECTORY + "/" + uid;
         if (new File(observePath).exists() && result == true) {
             sObserver.addObserver(observePath);
         } else if (result == true) {
-            sObserver.children.remove(observePath);
+            sObserver.mChildren.remove(observePath);
         }
         return result;
     }
@@ -141,13 +145,13 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         return mPersistenceAdapter.setGlobalSetting(setting, value);
     }
     
-    public void notification(final String packageName, final byte accessMode,
+
+    public void notification(final int uid, final byte accessMode,
             final String dataType, final String output) {
         if (mBootCompleted && mNotificationsEnabled && mSendNotifications) {
             Intent intent = new Intent();
             intent.setAction(PrivacySettingsManager.ACTION_PRIVACY_NOTIFICATION);
-            intent.putExtra("packageName", packageName);
-            intent.putExtra("uid", PrivacyPersistenceAdapter.DUMMY_UID);
+            intent.putExtra("uid", uid);
             intent.putExtra("accessMode", accessMode);
             intent.putExtra("dataType", dataType);
             intent.putExtra("output", output);
@@ -160,9 +164,9 @@ public final class PrivacySettingsManagerService extends IPrivacySettingsManager
         sObserver = new PrivacyFileObserver("/data/system/privacy", this);
     }
 
-    public void addObserver(String packageName) throws RemoteException {
+    public void addObserver(int uid) throws RemoteException {
         checkCallerCanWriteOrThrow();
-        sObserver.addObserver(packageName);
+        sObserver.addObserver(Integer.toString(uid));
     }
 
     public boolean purgeSettings() {
