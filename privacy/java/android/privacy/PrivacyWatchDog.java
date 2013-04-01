@@ -1,5 +1,10 @@
 package android.privacy;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import android.os.FileObserver;
 import android.privacy.utilities.PrivacyDebugger;
 /**
@@ -15,175 +20,194 @@ import android.privacy.utilities.PrivacyDebugger;
  */
 public final class PrivacyWatchDog extends FileObserver {
 
-	private static final String TAG = "PrivacyWatchDog";
-	
-	private static final String WATCH_PATH = "/data/system/privacy.db";
-	
-	private PrivacyWatchDogInterface callBack;
-	
-	/**
-	 * intent data key
-	 */
-	public static final String MSG_WHAT_INT = "msg_what_i";
-	
-	/**
-	 * intent data key
-	 */
-	public static final String MSG_WHAT_STRING = "msg_what_s";
-	
-	/**
-	 * intent data key, this key contains an ArrayList with all packageNames inside for which
-	 * we wasn't able to restore the settings.
-	 */
-	public static final String MSG_RECOVERY_FAIL_INFO = "rc_info";
+    private static final String TAG = "PrivacyWatchDog";
 
-	/**
-	 * MSG will be attached in callBack if someone changed the database
-	 */
-	public static final int MSG_DATABASE_MODIFY = 1;
-	/**
-	 * MSG will be attached in CallBack if someone deleted the database
-	 */
-	public static final int MSG_DATABASE_DELETED = 2;
-	/**
-	 * MSG will be attached in CallBack if someone moved the database
-	 */
-	public static final int MSG_DATABASE_MOVED = 3;
-	
-	
-	private boolean authorizedSave = false;
-	
-	/**
-	 * Constructor
-	 * @param iface current callBack interface
-	 */
-	public PrivacyWatchDog(PrivacyWatchDogInterface iface) {
-		super(WATCH_PATH);
-		callBack = iface;
-		PrivacyDebugger.i(TAG,"initalized watchdog!");
-		this.startWatching();
-		PrivacyDebugger.i(TAG,"started watching on database");
-	}
-	
-	/**
-	 * Use this constructor if the onWatchDogFinalize callback gets a call.
-	 * It can happen that the watchdog gets finalize during an authorized db access, 
-	 * @param iface
-	 * @param authorizedAccessInProgress true if currently there is one authorized access in progress, false otherwise
-	 */
-	public PrivacyWatchDog(PrivacyWatchDogInterface iface, boolean authorizedAccessInProgress) {
-		super(WATCH_PATH);
-		callBack = iface;
-		PrivacyDebugger.i(TAG,"Constructor called because watchdog finalized. AuthorizedAccessinProgress: " + authorizedAccessInProgress);
-		if(authorizedAccessInProgress)
-			authorizedSave = true;
-		this.startWatching();
-		PrivacyDebugger.i(TAG,"started watching on database");
-	}
-	
-	/**
-	 * Sets the current interface
-	 * @param iface current callBack interface
-	 */
-	public void setInterface(PrivacyWatchDogInterface iface) {
-		callBack = iface;
-	}
+    private static final String WATCH_PATH = "/data/system/privacy.db";
 
-	@Override
-	public void onEvent(int event, String path) {
+    private PrivacyWatchDogInterface callBack;
 
-	    //data was written to a file
-	    if ((FileObserver.MODIFY & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database modified");
-	    	if(!authorizedSave) {
-	    		PrivacyDebugger.w(TAG, "inform adapter about modified database");
-	    		callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_MODIFY);
-	    	} else {
-	    		PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
-	    	}
-	    }
-	    //the monitored file or directory was deleted, monitoring effectively stops
-	    if ((FileObserver.DELETE_SELF & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database deleted");
-	    	callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_DELETED);
-	    }
-	    //the monitored file or directory was moved; monitoring continues
-	    if ((FileObserver.MOVE_SELF & event) != 0) {
-	    	PrivacyDebugger.w(TAG, "detected database moved");
-	    	callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_MOVED);
-	    }
+    /**
+     * intent data key
+     */
+    public static final String MSG_WHAT_INT = "msg_what_i";
 
-	}
-	
-	@Override
-	public void finalize () {
-		// shit-> inform service about that :-/
-		try {
-			callBack.onWatchDogFinalize(authorizedSave);
-		} catch(Exception e) {
-			PrivacyDebugger.e(TAG, "can't inform that WatchDog g finalized!", e);
-		}
-		try {
-			super.finalize();
-		} catch(Exception e) {
-			//nothing here
-		}
-	}
-	
-	/**
-	 * Call this method at the beginning of authorized database accesses
-	 */
-	public synchronized void onBeginAuthorizedTransaction() {
-		authorizedSave = true;
-	}
-	
-	/**
-	 * Call this method at the end of authorized database accesses
-	 */
-	public synchronized void onEndAuthorizedTransaction() {
-		authorizedSave = false;
-	}
-	
-	/**
-	 * Converts callBack message to readable string
-	 * @param msg callBack message
-	 * @return readable string for debug or whatever
-	 */
-	public String msgToString (int msg) {
-		switch(msg) {
-			case MSG_DATABASE_MODIFY:
-				return "database modified";
-			case MSG_DATABASE_DELETED:
-				return "database deleted";
-			case MSG_DATABASE_MOVED:
-				return "database moved";
-			default:
-				return "UNKNOWN";
-		}
-	}
-	
-	/**
-	 * WatchDog interface to handle UnauthorizedDatabaseAccesses
-	 * @author CollegeDev
-	 */
-	public interface PrivacyWatchDogInterface {
-		
-		/**
-		 * This method gets a call if someone tries to:
-		 * 		- Write to database and modifying permissions
-		 * 		- delete the database 
-		 * 		- moving the database
-		 */
-		public void onUnauthorizedDatabaseAccess(int MSG_WHAT);
-		
-		
-		/**
-		 * This method gets a call if our current watchDog gets finalize
-		 * -> WatchDog is stops watching, we have to initiate a new one
-		 * @param authorizedAccessInProgress is the last state of our internal authorizedSave variable
-		 */
-		public void onWatchDogFinalize(boolean authorizedAccessInProgress);
-		
-	}
+    /**
+     * intent data key
+     */
+    public static final String MSG_WHAT_STRING = "msg_what_s";
+
+    /**
+     * intent data key, this key contains an ArrayList with all packageNames inside for which
+     * we wasn't able to restore the settings.
+     */
+    public static final String MSG_RECOVERY_FAIL_INFO = "rc_info";
+
+    /**
+     * MSG will be attached in callBack if someone changed the database
+     */
+    public static final int MSG_DATABASE_MODIFY = 1;
+    /**
+     * MSG will be attached in CallBack if someone deleted the database
+     */
+    public static final int MSG_DATABASE_DELETED = 2;
+    /**
+     * MSG will be attached in CallBack if someone moved the database
+     */
+    public static final int MSG_DATABASE_MOVED = 3;
+
+    private static final Random random = new Random();
+
+
+    //private boolean authorizedSave = false;
+
+    private AtomicInteger authorizedSave = new AtomicInteger();
+
+
+    /**
+     * Constructor
+     * @param iface current callBack interface
+     */
+    public PrivacyWatchDog(PrivacyWatchDogInterface iface) {
+        super(WATCH_PATH);
+        callBack = iface;
+        PrivacyDebugger.i(TAG,"initalized watchdog!");
+        this.startWatching();
+        PrivacyDebugger.i(TAG,"started watching on database");
+    }
+
+    /**
+     * Use this constructor if the onWatchDogFinalize callback gets a call.
+     * It can happen that the watchdog gets finalize during an authorized db access, 
+     * @param iface
+     * @param authorizedAccessInProgress true if currently there is one authorized access in progress, false otherwise
+     */
+    public PrivacyWatchDog(PrivacyWatchDogInterface iface, int authorizedAccessInProgress) {
+        super(WATCH_PATH);
+        callBack = iface;
+        PrivacyDebugger.i(TAG,"Constructor called because watchdog finalized. AuthorizedAccessInProgress: " + authorizedAccessInProgress);
+        if(authorizedAccessInProgress > 0)
+            authorizedSave.set(authorizedAccessInProgress);
+        else
+            authorizedSave.set(0);
+        this.startWatching();
+        PrivacyDebugger.i(TAG,"started watching on database");
+    }
+
+    /**
+     * Sets the current interface
+     * @param iface current callBack interface
+     */
+    public void setInterface(PrivacyWatchDogInterface iface) {
+        callBack = iface;
+    }
+
+    @Override
+    public void onEvent(int event, String path) {
+
+        //data was written to a file
+        if ((FileObserver.MODIFY & event) != 0) {
+            PrivacyDebugger.w(TAG, "detected database modified");
+            if (authorizedSave.get() > 0) {
+                PrivacyDebugger.i(TAG, "user is authorized to modify database, do not inform adapter!");
+            } else {
+                PrivacyDebugger.w(TAG, "inform adapter about modified database");
+                callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_MODIFY);
+            }
+        }
+        //the monitored file or directory was deleted, monitoring effectively stops
+        if ((FileObserver.DELETE_SELF & event) != 0) {
+            PrivacyDebugger.w(TAG, "detected database deleted");
+            callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_DELETED);
+        }
+        //the monitored file or directory was moved; monitoring continues
+        if ((FileObserver.MOVE_SELF & event) != 0) {
+            PrivacyDebugger.w(TAG, "detected database moved");
+            callBack.onUnauthorizedDatabaseAccess(MSG_DATABASE_MOVED);
+        }
+
+    }
+
+    @Override
+    public void finalize () {
+        // shit-> inform service about that :-/
+        try {
+            callBack.onWatchDogFinalize(authorizedSave.get());
+        } catch(Exception e) {
+            PrivacyDebugger.e(TAG, "can't inform that WatchDog g finalized!", e);
+        }
+        try {
+            super.finalize();
+        } catch(Exception e) {
+            //nothing here
+        }
+    }
+
+    /**
+     * Call this method at the beginning of authorized database accesses
+     */
+    public synchronized void onBeginAuthorizedTransaction() {
+        int temp = authorizedSave.incrementAndGet();
+        PrivacyDebugger.i(TAG,"onBeginAuthorizedTransaction() - authorized threads: " + temp);
+    }
+
+    /**
+     * Call this method at the end of authorized database accesses
+     */
+    public synchronized void onEndAuthorizedTransaction() {
+        // we need to operate with threads -> since on some device the database accesses are modified to multithreading, we have to
+        // do this here. TODO: find better solution like extend from openhelper?
+        new Thread (new Runnable() {
+            public void run() {
+                try {
+                    Thread.sleep(1000); //now wait 1 seconds! (modify time? to lower value?)
+                } catch (Exception e) {
+                    // nothing here
+                }
+                PrivacyDebugger.i(TAG,"onEndAuthorizedTransaction() - authorized threads: " + authorizedSave.decrementAndGet());
+            }
+        }).start();
+    }
+
+    /**
+     * Converts callBack message to readable string
+     * @param msg callBack message
+     * @return readable string for debug or whatever
+     */
+    public String msgToString (int msg) {
+        switch(msg) {
+            case MSG_DATABASE_MODIFY:
+                return "database modified";
+            case MSG_DATABASE_DELETED:
+                return "database deleted";
+            case MSG_DATABASE_MOVED:
+                return "database moved";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
+    /**
+     * WatchDog interface to handle UnauthorizedDatabaseAccesses
+     * @author CollegeDev
+     */
+    public interface PrivacyWatchDogInterface {
+
+        /**
+         * This method gets a call if someone tries to:
+         *      - Write to database and modifying permissions
+         *      - delete the database 
+         *      - moving the database
+         */
+        public void onUnauthorizedDatabaseAccess(int MSG_WHAT);
+
+
+        /**
+         * This method gets a call if our current watchDog gets finalize
+         * -> WatchDog is stops watching, we have to initiate a new one
+         * @param authorizedAccessInProgress is the last state of our internal authorizedSave variable
+         */
+        public void onWatchDogFinalize(int authorizedAccessInProgress);
+
+    }
 
 }
