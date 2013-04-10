@@ -469,8 +469,9 @@ public class MediaRecorder
                         pSet = null;
                     }
                 } catch(PrivacyServiceException e) {
-                    Log.e(PRIVACY_TAG,"MediaRecorder:checkIfPackagesAllowed:return GOT_ERROR, "
-                            + because PrivacyServiceException occurred");
+                    Log.e(PRIVACY_TAG,
+                            "MediaRecorder:checkIfPackagesAllowed:return GOT_ERROR, "
+                            + "because PrivacyServiceException occurred");
                     return GOT_ERROR;
                 }
                 return IS_ALLOWED;
