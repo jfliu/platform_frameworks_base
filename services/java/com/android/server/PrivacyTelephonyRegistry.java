@@ -57,18 +57,27 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
 	private static final int PERMISSION_CALL_STATE = 3;
 	
 	private static final int PERMISSION_SERVICE_STATE = 4;
+
+    private Context _context;
 	
 	public PrivacyTelephonyRegistry(Context context) {
 		super(context);
-        pSetMan = PrivacySettingsManager.getPrivacyService();
-		try{
-			registerPrivacy();
-		} catch(Exception e){
-			Log.e(P_TAG,"failed to register privacy broadcastreceiver", e);
-		}
+        this._context = context;
 		Log.i(P_TAG,"constructor ready");
 	}
 	
+
+       private void initialize() {
+               if(ServiceManager.getService("privacy") != null) {
+                       pSetMan = new PrivacySettingsManager(_context, IPrivacySettingsManager.Stub.asInterface(ServiceManager.getService("privacy")));
+                       try{
+                               registerPrivacy();
+                       } catch(Exception e){
+                               Log.e(P_TAG,"failed to register privacy broadcastreceiver");
+                       }
+               }
+       }
+
 	/** This broadCastReceiver receives the privacy intent for blocking phonecalls and faking phonestate */
 	private final BroadcastReceiver privacyReceiver = new BroadcastReceiver()
     {
@@ -268,6 +277,10 @@ public class PrivacyTelephonyRegistry extends TelephonyRegistry{
 	
 	
 	private boolean isPackageAllowed(int PERMISSION, String packageName){
+        if(pSetMan == null) {
+           initialize();
+           if(pSetMan == null) return false;
+        }
 	    PrivacySettings settings;
 	    try {
 	        if (pSetMan == null) pSetMan = PrivacySettingsManager.getPrivacyService();
