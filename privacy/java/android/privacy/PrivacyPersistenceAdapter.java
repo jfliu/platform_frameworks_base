@@ -1147,7 +1147,7 @@ public final class PrivacyPersistenceAdapter {
                     + "WriteLock: (post)lock");
             try {
                 Cursor cursor = null;
-                if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: 
+                if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: "
                         + "Transaction: (pre)begin");
                 db.beginTransaction();
                 if (LOG_LOCKING) Log.d(TAG, "PrivacyPersistenceAdapter:purgeSettings: "

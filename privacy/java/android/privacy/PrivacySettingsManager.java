@@ -182,7 +182,7 @@ public final class PrivacySettingsManager {
         try {
             service.addObserver(packageName);
         } catch (RemoteException e) {
-            Log.e(TAG, "PrivacySettingsManager:addObserver: Exception occurred in the 
+            Log.e(TAG, "PrivacySettingsManager:addObserver: Exception occurred in the "
                     + "remote privacy service", e);
             throw new PrivacyServiceException("Exception occurred in the "
                     + "remote privacy service", e);
