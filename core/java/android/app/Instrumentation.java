@@ -1982,7 +1982,7 @@ public class Instrumentation {
             if (!allowIntent) return new ActivityResult(requestCode, intent);
         } catch(Exception e) {
             Log.e(TAG,"Privacy:Instrumentation:execStartActivity (with UserHandle): "
-                    + Exception occurred while trying to create ActivityResult", e);
+                    + "Exception occurred while trying to create ActivityResult", e);
             return null;
         }
         // END privacy-added
