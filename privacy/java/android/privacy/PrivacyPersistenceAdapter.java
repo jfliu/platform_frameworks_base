@@ -825,7 +825,7 @@ public final class PrivacyPersistenceAdapter {
                                                 throw new Exception(
                                                         "PrivacyPersistenceAdapter:saveSettings:"
                                                         + "failed to update database entry "
-                                                        + (contacts)");
+                                                        + (contacts));
                                         }
                                     }
                                 } else {
