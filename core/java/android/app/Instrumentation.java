@@ -1416,7 +1416,7 @@ public class Instrumentation {
                 allowIntent = true;
             } else {
                 Log.d(TAG,"Privacy:Instrumentation:execStartActivity: "
-                        + Intent action = Intent.ACTION_CALL or Intent.ACTION_DIAL for "
+                        + "Intent action = Intent.ACTION_CALL or Intent.ACTION_DIAL for "
                         + who.getPackageName());
                 if (mPrvSvc == null) mPrvSvc = PrivacySettingsManager.getPrivacyService();
                 try {
